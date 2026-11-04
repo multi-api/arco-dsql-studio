@@ -31,8 +31,13 @@ Instructions for AI agents (and people) building this repository.
   - Running SQL as the tables' owner (through the app's console Lambda) needs the owner's OK each time.
 - **The app itself** never stores secrets, only appends to `~/.aws/config` after showing the exact lines, and always
   previews and confirms production edits.
-- **Toolchain:** Rust stable comes from Homebrew's `rustup`. If `cargo` is not on `PATH`, add
-  `~/.rustup/toolchains/stable-aarch64-apple-darwin/bin` or run `rustup default stable`. Node 22. Use Tauri **2.x**,
+- **Toolchain (this may be a fresh machine):** check `cargo --version`, `node --version` (22), `xcode-select -p`. If
+  Rust is missing, install it with rustup (`brew install rustup && rustup default stable`, or the installer from
+  rustup.rs) — ask the owner before installing anything. If `rustup` exists but `cargo` is not on `PATH`, add
+  `~/.rustup/toolchains/stable-aarch64-apple-darwin/bin`. Tauri's macOS prerequisites: Xcode or its command line
+  tools. The AWS CLI v2 is handy for checks but the app does not need it.
+- **AWS test values:** the owner gives them to you (test account, SSO profile, cluster endpoint, test schema, console
+  function). On a new machine the owner also sets up the SSO profile; never write those values into the repository. Node 22. Use Tauri **2.x**,
   not the 3.0 alpha.
 - **Tests first** (TDD) for the Rust core and the UI behaviours listed in the plan.
 - **Document everything:** every user-visible behaviour goes in `README.md` or `docs/*.md` in the same task that

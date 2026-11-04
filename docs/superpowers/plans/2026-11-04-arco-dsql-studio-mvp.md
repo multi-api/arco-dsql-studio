@@ -6,7 +6,7 @@
 
 **Architecture:** A Tauri 2 app. All AWS and Postgres work lives in a plain Rust library crate, `dsql-core`, testable without Tauri; `src-tauri` is a thin layer of Tauri commands over it; the React + TypeScript UI calls those commands and never sees credentials or tokens.
 
-**Tech Stack:** Rust (stable 1.99 via the Homebrew `rustup` already on this Mac; put `~/.rustup/toolchains/stable-aarch64-apple-darwin/bin` on `PATH` or run `rustup default stable`), Tauri 2.x (not the 3.0 alpha), `aws-config` 1.x (`sso` feature), `aws-sdk-dsql`, `aws-sdk-sts`, `aws-sdk-iam`, `aws-sdk-sso`, `aws-sdk-ssooidc`, `aws-sdk-lambda`, `tokio-postgres` 0.7 + `tokio-postgres-rustls` + `rustls` + `webpki-roots`, `sqlparser` (PostgreSQL dialect), `rusqlite` (bundled), `sha1`, `serde`, `thiserror`; Node 22, Vite, React 18, TypeScript, CodeMirror 6 (`@codemirror/lang-sql`), TanStack Table + TanStack Virtual, Tailwind, Vitest.
+**Tech Stack:** Rust stable (1.99 or later; see CLAUDE.md "Toolchain" for a fresh machine), Tauri 2.x (not the 3.0 alpha), `aws-config` 1.x (`sso` feature), `aws-sdk-dsql`, `aws-sdk-sts`, `aws-sdk-iam`, `aws-sdk-sso`, `aws-sdk-ssooidc`, `aws-sdk-lambda`, `tokio-postgres` 0.7 + `tokio-postgres-rustls` + `rustls` + `webpki-roots`, `sqlparser` (PostgreSQL dialect), `rusqlite` (bundled), `sha1`, `serde`, `thiserror`; Node 22, Vite, React 18, TypeScript, CodeMirror 6 (`@codemirror/lang-sql`), TanStack Table + TanStack Virtual, Tailwind, Vitest.
 
 **Spec:** `docs/superpowers/specs/2026-11-04-arco-dsql-studio-design.md` (section numbers below refer to it).
 
@@ -104,7 +104,7 @@ arco-dsql-studio/
 
 ### Task 1: Spike against the real cluster (spec section 8)
 
-Confirm the profile and account with the owner first. Values come from env vars; the private note in the shared notes folder has them.
+Confirm the profile and account with the owner first. Values come from env vars; the owner gives you the real values (they are never in the repository).
 
 **Files:** Create `crates/dsql-core/examples/spike.rs`, `docs/spike-findings.md`.
 
@@ -371,5 +371,5 @@ Confirm the profile and account with the owner first. Values come from env vars;
 - [ ] **Step 1:** `npm run tauri build -- --target aarch64-apple-darwin` → `.app` and `.dmg` under `src-tauri/target/.../bundle/`. Record size. Unsigned is acceptable; document the Gatekeeper "Open anyway" step and that signing/notarisation needs the owner's Apple Developer ID (later).
 - [ ] **Step 2:** README: what it is and why (the three walls), screenshots placeholder, install (from the `.dmg`, from source), first connection walkthrough, IAM permissions table (`dsql:DbConnectAdmin`, `dsql:DbConnect`, `dsql:ListClusters`, `dsql:GetCluster`, `dsql:ListTagsForResource`, `iam:GetRole` optional, `lambda:InvokeFunction` optional), what is stored locally and what is not, DSQL limitations with links to the Laravel driver, troubleshooting, licence MIT. Links to `docs/*.md`.
 - [ ] **Step 3:** Full test run: `cargo test --workspace`, `npm test`, gated integration suite with the owner's confirmed profile. All PASS (report any skipped test and why).
-- [ ] **Step 4:** Leave a hand-over note in the shared notes folder (what is done, what is pending: signing, Windows/Linux, deep link from Arco Cloud) and commit `docs: README and macOS build`.
+- [ ] **Step 4:** Update the "Status" section of `CLAUDE.md` as the hand-over note (what is done, what is pending: signing, Windows/Linux, deep link from Arco Cloud) and commit `docs: README and macOS build`.
 - [ ] **Step 5:** Ask the owner (in Spanish) for an explicit "si" before creating `multi-api/arco-dsql-studio` on GitHub (public) and pushing. Do not push before.

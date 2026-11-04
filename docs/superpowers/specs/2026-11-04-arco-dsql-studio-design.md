@@ -310,8 +310,7 @@ Map errors to plain-language explanations with a "how to fix" action:
 ## 8. Risks to resolve first (spike before building screens)
 Use the owner's end-to-end test account and DSQL cluster (us-east-1). The repository is public, so the account ID,
 cluster ID, profile name and role ARNs are **never committed**: tests and scripts read them from env vars
-(`DSQL_HOST`, `DSQL_REGION`, `AWS_PROFILE`), and the concrete values are in the owner's private session notes
-(`arco-dsql-studio-test-env.md` in the shared notes folder). Confirm the profile and account with the owner before any AWS call.
+(`DSQL_HOST`, `DSQL_REGION`, `AWS_PROFILE`), and the owner gives the concrete values to whoever builds the app. Confirm the profile and account with the owner before any AWS call.
 Destructive AWS actions are the owner's; SQL experiments must clean up after themselves (drop test roles and tables).
 1. `tokio-postgres` + rustls connects with an admin token and with a custom-role token (verify-full).
 2. Prepared/extended protocol: does `query`, `query_typed` or statement drop break the transaction on DSQL (the
