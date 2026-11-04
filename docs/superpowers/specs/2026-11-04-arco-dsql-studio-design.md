@@ -17,7 +17,7 @@ fail on three DSQL-specific walls:
    `dsql:DbConnectAdmin` and the admin token variant; any other role needs `dsql:DbConnect`, the normal token, and an
    `AWS IAM GRANT <role> TO '<IAM role ARN>'` mapping. Generic clients make you paste a fresh token by hand.
 2. **The tables are not in `public`.** Each environment's tables live in a schema named like the app's DSQL user
-   (for example `arco_move_test_app_staging`). The app's role owns them. So `admin` gets
+   (for example `myapp_staging`). The app's role owns them. So `admin` gets
    `relation "users" does not exist` without `search_path`, and `permission denied for table users` until the owner
    grants access.
 3. **You cannot sign in as the app's role.** It is mapped only to the app's Lambda execution role.

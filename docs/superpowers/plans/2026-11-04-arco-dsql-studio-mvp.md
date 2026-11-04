@@ -28,7 +28,7 @@
 
 ## Review Focus
 
-1. **Identifiers that need quoting** (schema `arco_move_test_app_staging` is fine, but tables or columns with capitals, spaces, quotes or reserved words like `order`, `user`): every generated statement must quote identifiers and literals correctly. Pinned in Task 10 (`edits_quote_hostile_identifiers`) and Task 11 (`role_plan_quotes_schema`).
+1. **Identifiers that need quoting** (schema `myapp_staging` is fine, but tables or columns with capitals, spaces, quotes or reserved words like `order`, `user`): every generated statement must quote identifiers and literals correctly. Pinned in Task 10 (`edits_quote_hostile_identifiers`) and Task 11 (`role_plan_quotes_schema`).
 2. **Expired SSO session mid-use** (the user leaves the app open overnight): the next connect must fail with "Sign in again", not a raw SDK error, and must not corrupt open tabs. Pinned in Task 3 (`classify_sdk_error_expired_sso`) and Task 9 (`explain_expired_sso`).
 3. **A long-lived session crossing the 60-minute limit or a dropped network**: the pool reconnects transparently when no transaction is open, and reports clearly when one was. Pinned in Task 5 (`pool_recycles_old_connections`).
 4. **Large saves and large results** (editing 5,000 rows; `select *` on a big table): saves are split under the DSQL row limit, and query results are capped (default 10,000 rows, with a "results truncated" notice). Pinned in Task 10 (`edits_batch_under_row_limit`) and Task 7 (`run_script_caps_rows`).
@@ -299,7 +299,7 @@ Confirm the profile and account with the owner first. Values come from env vars;
   - `pub fn remove_plan(role, iam_role_arn, schema, tables) -> RolePlan` — owner REVOKEs first, then admin `AWS IAM REVOKE`, `REVOKE USAGE`, `DROP ROLE` (order pinned by test).
   - `pub fn grant_owner_privileges_via_admin_plan(app_role: &str, sql: &[String]) -> Vec<String>` — only used if Task 1 Step 5 succeeded and the user accepted: `GRANT "<app_role>" TO admin`, `SET ROLE "<app_role>"`, …sql…, `RESET ROLE`, `REVOKE "<app_role>" FROM admin`. Delete this function if Step 5 failed.
   - `pub async fn existing_mappings(s: &Session) -> Result<Vec<(String, String)>>` (`sys.iam_pg_role_mappings`).
-  - `pub fn console_function_name(schema: &str) -> String` (`arco_move_test_app_staging` → `arco-move-test-app-staging-console`: `_` → `-`, suffix `-console`; the UI lets the user correct it).
+  - `pub fn console_function_name(schema: &str) -> String` (`myapp_staging` → `myapp-staging-console`: `_` → `-`, suffix `-console`; the UI lets the user correct it).
   - `pub async fn run_tinker(cfg: &SdkConfig, function: &str, php: &str) -> Result<String, CoreError>` (Lambda Invoke, qualifier `live`, payload `{"command":"tinker --execute=\"<escaped php>\""}`; return the output; map FunctionError to `CoreError::Aws{Other}` with the output).
 - [ ] **Step 1: Failing tests:** `role_plan_quotes_schema`, `create_plan_readonly_grants_select_only`, `create_plan_readwrite`, `remove_plan_revokes_before_drop` (owner_sql all REVOKE; admin_sql ends with `DROP ROLE`; `AWS IAM REVOKE` before it), `owner_tinker_escapes_quotes`, `console_function_name_from_schema`, `tinker_payload_escaping` (php with `"` and `\` → valid JSON whose `command` decodes back).
 - [ ] **Step 2–4:** FAIL → implement → PASS.
