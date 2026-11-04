@@ -14,7 +14,8 @@ Instructions for AI agents (and people) building this repository.
 
 ## Status
 
-- 2026-11-04: spec, plan, README, licence. No code yet. Next: Task 0 (scaffold), then Task 1 (spike).
+- 2026-11-04: spec, plan, README, licence.
+- 2026-11-04: Task 0 done (Tauri 2 scaffold, `dsql-core` with `CoreError`, Vitest; see `docs/development.md`). Next: Task 1 (spike against the real cluster; needs the owner's AWS test values).
 
 ## Rules
 
@@ -35,7 +36,8 @@ Instructions for AI agents (and people) building this repository.
   Rust is missing, install it with rustup (`brew install rustup && rustup default stable`, or the installer from
   rustup.rs) — ask the owner before installing anything. If `rustup` exists but `cargo` is not on `PATH`, add
   `~/.rustup/toolchains/stable-aarch64-apple-darwin/bin`. Tauri's macOS prerequisites: Xcode or its command line
-  tools. The AWS CLI v2 is handy for checks but the app does not need it.
+  tools. On Windows: `winget install Rustlang.Rustup`, plus the Microsoft C++ Build Tools and WebView2; `cargo` lives
+  in `~/.cargo/bin`. The AWS CLI v2 is handy for checks but the app does not need it.
 - **AWS test values:** the owner gives them to you (test account, SSO profile, cluster endpoint, test schema, console
   function). On a new machine the owner also sets up the SSO profile; never write those values into the repository.
 - **Tauri 2.x**, not the 3.0 alpha.

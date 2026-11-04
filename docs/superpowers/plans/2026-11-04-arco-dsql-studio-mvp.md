@@ -6,7 +6,7 @@
 
 **Architecture:** A Tauri 2 app. All AWS and Postgres work lives in a plain Rust library crate, `dsql-core`, testable without Tauri; `src-tauri` is a thin layer of Tauri commands over it; the React + TypeScript UI calls those commands and never sees credentials or tokens.
 
-**Tech Stack:** Rust stable (1.99 or later; see CLAUDE.md "Toolchain" for a fresh machine), Tauri 2.x (not the 3.0 alpha), `aws-config` 1.x (`sso` feature), `aws-sdk-dsql`, `aws-sdk-sts`, `aws-sdk-iam`, `aws-sdk-sso`, `aws-sdk-ssooidc`, `aws-sdk-lambda`, `tokio-postgres` 0.7 + `tokio-postgres-rustls` + `rustls` + `webpki-roots`, `sqlparser` (PostgreSQL dialect), `rusqlite` (bundled), `sha1`, `serde`, `thiserror`; Node 22, Vite, React 18, TypeScript, CodeMirror 6 (`@codemirror/lang-sql`), TanStack Table + TanStack Virtual, Tailwind, Vitest.
+**Tech Stack:** Rust stable (1.99 or later; see CLAUDE.md "Toolchain" for a fresh machine), Tauri 2.x (not the 3.0 alpha), `aws-config` 1.x (`sso` feature), `aws-sdk-dsql`, `aws-sdk-sts`, `aws-sdk-iam`, `aws-sdk-sso`, `aws-sdk-ssooidc`, `aws-sdk-lambda`, `tokio-postgres` 0.7 + `tokio-postgres-rustls` + `rustls` + `webpki-roots`, `sqlparser` (PostgreSQL dialect), `rusqlite` (bundled), `sha1`, `serde`, `thiserror`; Node 22+ (26 works), Vite, React 19 (what `create-tauri-app` scaffolds; Testing Library supports it), TypeScript, CodeMirror 6 (`@codemirror/lang-sql`), TanStack Table + TanStack Virtual, Tailwind, Vitest.
 
 **Spec:** `docs/superpowers/specs/2026-11-04-arco-dsql-studio-design.md` (section numbers below refer to it).
 
@@ -96,11 +96,13 @@ arco-dsql-studio/
 **Interfaces:**
 - Produces: `dsql_core::error::{CoreError, AwsErrorKind}`; `npm run tauri dev` opens a window titled "Arco DSQL Studio"; `cargo test -p dsql-core` runs.
 
-- [ ] **Step 1:** Scaffold with `npm create tauri-app@latest` (React + TypeScript, Tauri 2), move into the workspace layout above, set `identifier` to `cl.multiapi.arco-dsql-studio`, product name "Arco DSQL Studio", window 1280×800.
-- [ ] **Step 2:** Add `dsql-core` with `CoreError` and a test `core_error_serializes_with_kind` asserting `serde_json::to_value(CoreError::Aws{kind: SsoExpired, ..})["Aws"]["kind"] == "SsoExpired"`.
-- [ ] **Step 3:** Run `cargo test -p dsql-core` → PASS; `npm run tauri dev` → window opens; `npm test` (Vitest) → PASS with one smoke test rendering `<App/>`.
-- [ ] **Step 4:** `LICENSE` (MIT, Joaquín Gamboa, same as the Laravel driver), `README.md`, `CLAUDE.md` and `.gitignore` already exist; keep them and add the `.gitignore` entries the scaffold needs. Write `docs/development.md` (toolchain, commands).
-- [ ] **Step 5:** Commit `chore: scaffold Tauri app and dsql-core crate`.
+- [x] **Step 1:** Scaffold with `npm create tauri-app@latest` (React + TypeScript, Tauri 2), move into the workspace layout above, set `identifier` to `cl.multiapi.arco-dsql-studio`, product name "Arco DSQL Studio", window 1280×800.
+- [x] **Step 2:** Add `dsql-core` with `CoreError` and a test `core_error_serializes_with_kind` asserting `serde_json::to_value(CoreError::Aws{kind: SsoExpired, ..})["Aws"]["kind"] == "SsoExpired"`.
+- [x] **Step 3:** Run `cargo test -p dsql-core` → PASS; `npm run tauri dev` → window opens; `npm test` (Vitest) → PASS with one smoke test rendering `<App/>`.
+- [x] **Step 4:** `LICENSE` (MIT, Joaquín Gamboa, same as the Laravel driver), `README.md`, `CLAUDE.md` and `.gitignore` already exist; keep them and add the `.gitignore` entries the scaffold needs. Write `docs/development.md` (toolchain, commands).
+- [x] **Step 5:** Commit `chore: scaffold Tauri app and dsql-core crate`.
+
+Done 2026-11-04 on Windows 11 (the first machine available; macOS stays the target): the window opens with `npm run tauri dev`, `cargo test --workspace` and `npm test` pass. Root `Cargo.toml` is the workspace, so `target/` is at the root; the Tauri crate is `arco-dsql-studio` (lib `arco_dsql_studio_lib`).
 
 ### Task 1: Spike against the real cluster (spec section 8)
 
