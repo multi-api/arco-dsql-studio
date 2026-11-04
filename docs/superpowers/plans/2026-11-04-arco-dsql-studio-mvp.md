@@ -99,7 +99,7 @@ arco-dsql-studio/
 - [ ] **Step 1:** Scaffold with `npm create tauri-app@latest` (React + TypeScript, Tauri 2), move into the workspace layout above, set `identifier` to `cl.multiapi.arco-dsql-studio`, product name "Arco DSQL Studio", window 1280×800.
 - [ ] **Step 2:** Add `dsql-core` with `CoreError` and a test `core_error_serializes_with_kind` asserting `serde_json::to_value(CoreError::Aws{kind: SsoExpired, ..})["Aws"]["kind"] == "SsoExpired"`.
 - [ ] **Step 3:** Run `cargo test -p dsql-core` → PASS; `npm run tauri dev` → window opens; `npm test` (Vitest) → PASS with one smoke test rendering `<App/>`.
-- [ ] **Step 4:** MIT `LICENSE` (copyright "Multi API SpA" — confirm the exact holder name with the owner; the Laravel driver's LICENSE is the reference), README skeleton, `docs/development.md` (toolchain, commands).
+- [ ] **Step 4:** `LICENSE` (MIT, Joaquín Gamboa, same as the Laravel driver), `README.md`, `CLAUDE.md` and `.gitignore` already exist; keep them and add the `.gitignore` entries the scaffold needs. Write `docs/development.md` (toolchain, commands).
 - [ ] **Step 5:** Commit `chore: scaffold Tauri app and dsql-core crate`.
 
 ### Task 1: Spike against the real cluster (spec section 8)
