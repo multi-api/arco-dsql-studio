@@ -37,8 +37,8 @@ Instructions for AI agents (and people) building this repository.
   `~/.rustup/toolchains/stable-aarch64-apple-darwin/bin`. Tauri's macOS prerequisites: Xcode or its command line
   tools. The AWS CLI v2 is handy for checks but the app does not need it.
 - **AWS test values:** the owner gives them to you (test account, SSO profile, cluster endpoint, test schema, console
-  function). On a new machine the owner also sets up the SSO profile; never write those values into the repository. Node 22. Use Tauri **2.x**,
-  not the 3.0 alpha.
+  function). On a new machine the owner also sets up the SSO profile; never write those values into the repository.
+- **Tauri 2.x**, not the 3.0 alpha.
 - **Tests first** (TDD) for the Rust core and the UI behaviours listed in the plan.
 - **Document everything:** every user-visible behaviour goes in `README.md` or `docs/*.md` in the same task that
   builds it.
