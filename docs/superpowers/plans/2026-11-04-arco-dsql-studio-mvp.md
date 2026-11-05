@@ -168,10 +168,12 @@ Done 2026-11-04. Extra tests beyond the list: assume-role and process kinds, nes
   - `pub fn sso_role_arn_guess(account: &str, role_name: &str, sso_region: &str) -> String` (`arn:aws:iam::<a>:role/aws-reserved/sso.amazonaws.com/<region>/<role>`; for SSO region `us-east-1` there is no region segment, confirmed in Task 1 with `iam:GetRole`; pin with a test).
   - `pub async fn iam_role_arn(cfg: &SdkConfig, role_name: &str) -> Result<String, CoreError>` (IAM `GetRole`).
 
-- [ ] **Step 1: Failing tests:** `sso_cache_key_session` (`sso_cache_key(Some("my-sso"), "https://x.awsapps.com/start")` == SHA-1 hex of `my-sso`), `sso_cache_key_legacy`, `sso_cache_roundtrip_matches_cli_keys` (serialise → keys equal the fixture's), `classify_sdk_error_expired_sso` (messages containing "The SSO session associated with this profile has expired" or "Token has expired" → `SsoExpired`), `classify_access_denied`, `assumed_role_name_parses_sso_arn` (`arn:aws:sts::123:assumed-role/AWSReservedSSO_Admin_abc/me@x` → `AWSReservedSSO_Admin_abc`), `sso_role_arn_guess_*`.
-- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS.
-- [ ] **Step 5:** Integration test `it_caller_identity` (gated) → prints the account; owner confirms it is the test account.
-- [ ] **Step 6:** Commit `feat(core): SSO device login, CLI-compatible cache, caller identity`.
+- [x] **Step 1: Failing tests:** `sso_cache_key_session` (`sso_cache_key(Some("my-sso"), "https://x.awsapps.com/start")` == SHA-1 hex of `my-sso`), `sso_cache_key_legacy`, `sso_cache_roundtrip_matches_cli_keys` (serialise → keys equal the fixture's), `classify_sdk_error_expired_sso` (messages containing "The SSO session associated with this profile has expired" or "Token has expired" → `SsoExpired`), `classify_access_denied`, `assumed_role_name_parses_sso_arn` (`arn:aws:sts::123:assumed-role/AWSReservedSSO_Admin_abc/me@x` → `AWSReservedSSO_Admin_abc`), `sso_role_arn_guess_*`.
+- [x] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS.
+- [x] **Step 5:** Integration test `it_caller_identity` (gated) → prints the account; owner confirms it is the test account.
+- [x] **Step 6:** Commit `feat(core): SSO device login, CLI-compatible cache, caller identity`.
+
+Done 2026-11-04. `SsoToken`'s client and refresh fields are `Option` (legacy CLI tokens lack them); `read_sso_cache` added; `sdk_config` resolves credentials once so an expired session fails early with `SsoExpired`; `UnauthorizedException: Session token not found or invalid` counts as `SsoExpired`. Checked live: `it_caller_identity` (GetRole allowed) and `examples/sso_login.rs` (device flow, 11 account/role pairs, token file identical in name, keys and formats to the CLI's, written to a temp dir).
 
 ### Task 4: Cluster discovery
 

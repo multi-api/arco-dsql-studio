@@ -53,6 +53,12 @@ Integration tests run against a real Aurora DSQL cluster and are skipped when th
 This repository is public: never commit real values (account IDs, cluster IDs, ARNs, profile names, SSO start URLs).
 Keep them in your shell or in a `.env` file, which is git-ignored.
 
+Run the integration tests with the variables set, for example:
+
+```sh
+AWS_PROFILE=... DSQL_REGION=... cargo test -p dsql-core --test integration -- --nocapture
+```
+
 ## The DSQL spike
 
 `crates/dsql-core/examples/spike.rs` reproduces the checks in [`spike-findings.md`](spike-findings.md). Run it only
@@ -64,4 +70,15 @@ export SPIKE_IAM_ROLE_ARN=...   # the IAM role behind AWS_PROFILE (with its path
 cargo run -p dsql-core --example spike -- setup     # owner role, schema spike_app, tables with sample rows
 cargo run -p dsql-core --example spike -- run       # every check; prints each statement's outcome
 cargo run -p dsql-core --example spike -- teardown  # removes everything setup and run created
+```
+
+## Checking SSO sign-in by hand
+
+`crates/dsql-core/examples/sso_login.rs` runs the device flow the app uses: it prints a URL and a code, waits for you
+to approve in the browser, lists the accounts and roles you can reach, and writes the token to the directory you pass.
+Pass a temporary directory to leave the AWS CLI's own `~/.aws/sso/cache` alone, and delete it afterwards (the token is
+a secret).
+
+```sh
+cargo run -p dsql-core --example sso_login -- <start_url> <sso_region> <session_name> <temp_dir>
 ```
