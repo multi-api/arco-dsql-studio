@@ -8,13 +8,43 @@ Instructions for AI agents (and people) building this repository.
 - How, task by task: `docs/superpowers/plans/2026-11-04-arco-dsql-studio-mvp.md`. Follow it in order; tick the
   checkboxes as you go and commit the plan with each task. If a spike result changes a decision, update the plan and
   the spec in the same commit and say why.
+- Brand (logo, colors, font) for the UI and the app icon: `assets/brand/README.md`.
 - Reference for DSQL roles and schemas: the "Querying the database yourself" section of Arco Cloud's
   `docs/databases.md`, summarised in spec section 6.5. DSQL's unsupported features: the README of
   [`multiapi/laravel-aurora-dsql`](https://github.com/multi-api/laravel-aurora-dsql).
 
 ## Status
 
-- 2026-11-04: spec, plan, README, licence. No code yet. Next: Task 0 (scaffold), then Task 1 (spike).
+- 2026-11-04: spec, plan, README, licence.
+- 2026-11-04: Task 0 done (Tauri 2 scaffold, `dsql-core` with `CoreError`, Vitest; see `docs/development.md`).
+- 2026-11-04: Task 1 done on a scratch cluster the owner approved (not an Arco app); see `docs/spike-findings.md`.
+- 2026-11-04: Task 2 done (`profiles.rs`: list and append AWS profiles).
+- 2026-11-04: Task 3 done (`sso.rs`, `identity.rs`: device login, CLI-compatible cache, caller identity).
+- 2026-11-05: Task 4 done (`clusters.rs`: clusters across regions).
+- 2026-11-05: Task 5 done (`token.rs`, `conn.rs`: IAM tokens, verify-full TLS, cancel, recycling pool).
+- 2026-11-05: Task 6 done (`catalog.rs`: schemas, tables, columns, keys, default schema).
+- 2026-11-05: Arco logo merged (`assets/brand/`), app icons regenerated.
+- 2026-11-05: Task 7 done (`split.rs`, `exec.rs`, `store.rs`: run scripts, local history).
+- 2026-11-05: Task 8 done (`classify.rs`, `rules.rs`: statement kinds and DSQL warnings).
+- 2026-11-05: Task 9 done (`explain.rs`: plain-language errors with a fix).
+- 2026-11-05: Task 10 done (`edits.rs`, `occ.rs`: grid change sets, batching under DSQL's limits, OCC retry).
+- 2026-11-05: Task 11 done (`roles.rs`, `console.rs`: role wizard plans, admin takeover, console Lambda).
+- 2026-11-05: Task 12 done (Tauri commands over `dsql-core`, `src/api.ts`, IPC tests).
+- 2026-11-05: Task 13 done (welcome, AWS setup, cluster picker, connect; `docs/connecting.md`).
+- 2026-11-05: Task 14 done, MVP milestone (workspace: schema tree, SQL editor, results, history;
+  `docs/working-with-data.md`).
+- 2026-11-05: Task 15 done (table browser with staged edits, copy and CSV export).
+- 2026-11-05: Task 16 done (role wizard, remove a role, "Check access"; `docs/team-access.md`). Pending review: the
+  owner's manual end-to-end on the scratch cluster, and the console Lambda path (never run).
+- 2026-11-05: Task 17 done on Windows (README, release-build docs, macOS bundle settings, full test run).
+  **Hand-over — pending:**
+  - Build and try the `.dmg` on a Mac (Task 17 Step 1; record its size).
+  - The owner's manual check of the role wizard (Task 16 Step 5) and a first run of the console Lambda path
+    (**Run it for me**, `it_console_tinker`) on a real Arco app, with the owner's OK.
+  - Code signing and notarisation (needs the owner's Apple Developer ID); Windows and Linux packages; a deep link from
+    Arco Cloud.
+  - Publishing: create `multi-api/arco-dsql-studio` on GitHub and push, only after the owner's explicit "si".
+  - The scratch cluster (schema `spike_app`, roles `spike_owner` and `spike_readonly`) is the owner's to delete.
 
 ## Rules
 
@@ -35,7 +65,8 @@ Instructions for AI agents (and people) building this repository.
   Rust is missing, install it with rustup (`brew install rustup && rustup default stable`, or the installer from
   rustup.rs) — ask the owner before installing anything. If `rustup` exists but `cargo` is not on `PATH`, add
   `~/.rustup/toolchains/stable-aarch64-apple-darwin/bin`. Tauri's macOS prerequisites: Xcode or its command line
-  tools. The AWS CLI v2 is handy for checks but the app does not need it.
+  tools. On Windows: `winget install Rustlang.Rustup`, plus the Microsoft C++ Build Tools and WebView2; `cargo` lives
+  in `~/.cargo/bin`. The AWS CLI v2 is handy for checks but the app does not need it.
 - **AWS test values:** the owner gives them to you (test account, SSO profile, cluster endpoint, test schema, console
   function). On a new machine the owner also sets up the SSO profile; never write those values into the repository.
 - **Tauri 2.x**, not the 3.0 alpha.

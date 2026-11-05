@@ -1,0 +1,696 @@
+//! Integration tests against a real AWS account and Aurora DSQL cluster.
+//!
+//! Each test is skipped (passes without doing anything) unless the environment variables it needs are set; see
+//! `docs/development.md`. Never commit real values.
+
+use std::sync::{Mutex, MutexGuard};
+use std::time::{Duration, Instant};
+
+use dsql_core::conn::{self, Pool, Target};
+use dsql_core::token::DbRole;
+use dsql_core::{catalog, clusters, identity};
+
+/// Tests that change the schema (create a table, grant, create a role) make catalog reads running at the same time
+/// fail with `OC001` ("schema has been updated by another transaction"), so the live tests run one at a time.
+static SERIAL: Mutex<()> = Mutex::new(());
+
+fn serial() -> MutexGuard<'static, ()> {
+    SERIAL
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// `AWS_PROFILE` and `DSQL_REGION`, or `None` (test skipped) when either is unset.
+fn aws_env() -> Option<(String, String)> {
+    let profile = std::env::var("AWS_PROFILE")
+        .ok()
+        .filter(|v| !v.is_empty())?;
+    let region = std::env::var("DSQL_REGION")
+        .ok()
+        .filter(|v| !v.is_empty())?;
+    Some((profile, region))
+}
+
+/// An admin target for `DSQL_HOST` in `DSQL_TEST_SCHEMA`, or `None` (test skipped).
+fn admin_target() -> Option<Target> {
+    let (profile, region) = aws_env()?;
+    let host = std::env::var("DSQL_HOST").ok().filter(|v| !v.is_empty())?;
+    let schema = std::env::var("DSQL_TEST_SCHEMA")
+        .ok()
+        .filter(|v| !v.is_empty())?;
+    Some(Target {
+        profile,
+        region,
+        host,
+        role: DbRole::Admin,
+        schema: Some(schema),
+    })
+}
+
+#[tokio::test]
+async fn it_caller_identity() {
+    let _serial = serial();
+    let Some((profile, region)) = aws_env() else {
+        eprintln!("skipped: AWS_PROFILE and DSQL_REGION not set");
+        return;
+    };
+    let cfg = identity::sdk_config(&profile, &region)
+        .await
+        .expect("credentials");
+    let me = identity::caller_identity(&cfg)
+        .await
+        .expect("caller identity");
+    println!("account {} arn {}", me.account, me.arn);
+    assert_eq!(me.account.len(), 12);
+
+    // The IAM role behind an SSO session: GetRole when allowed, else the documented path pattern.
+    if let Some(role) = identity::assumed_role_name(&me.arn) {
+        match identity::iam_role_arn(&cfg, &role).await {
+            Ok(arn) => {
+                println!("iam role {arn}");
+                assert!(arn.ends_with(&format!("/{role}")));
+            }
+            Err(e) => println!(
+                "iam:GetRole not allowed ({e}); the app would fall back to sso_role_arn_guess"
+            ),
+        }
+    }
+}
+
+#[tokio::test]
+async fn it_lists_test_cluster() {
+    let _serial = serial();
+    let Some((profile, region)) = aws_env() else {
+        eprintln!("skipped: AWS_PROFILE and DSQL_REGION not set");
+        return;
+    };
+    let Ok(host) = std::env::var("DSQL_HOST") else {
+        eprintln!("skipped: DSQL_HOST not set");
+        return;
+    };
+    let (id, host_region) = clusters::parse_endpoint(&host).expect("DSQL_HOST is a DSQL endpoint");
+    assert_eq!(host_region, region);
+
+    let cfg = identity::sdk_config(&profile, &region)
+        .await
+        .expect("credentials");
+    let started = std::time::Instant::now();
+    let (found, failures) = clusters::list_clusters(&cfg, clusters::DSQL_REGIONS).await;
+    println!(
+        "{} clusters, {} regions skipped, in {} ms",
+        found.len(),
+        failures.len(),
+        started.elapsed().as_millis()
+    );
+    for (r, e) in &failures {
+        println!("skipped {r}: {e}");
+    }
+    let test = found
+        .iter()
+        .find(|c| c.identifier == id)
+        .expect("test cluster listed");
+    assert_eq!(test.region, region);
+    assert_eq!(test.endpoint, clusters::endpoint(&id, &region));
+    assert_eq!(test.status, "ACTIVE");
+    println!(
+        "test cluster tags: {:?}",
+        test.tags.keys().collect::<Vec<_>>()
+    );
+}
+
+#[tokio::test]
+async fn it_connect_admin_sets_search_path() {
+    let _serial = serial();
+    let Some(target) = admin_target() else {
+        eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
+        return;
+    };
+    let session = conn::connect(&target).await.expect("connect as admin");
+    let row = session
+        .client
+        .query_one("select current_user::text, current_schema()::text", &[])
+        .await
+        .unwrap();
+    assert_eq!(row.get::<_, String>(0), "admin");
+    assert_eq!(Some(row.get::<_, String>(1)), target.schema);
+}
+
+#[tokio::test]
+async fn it_cancel_closes_the_connection() {
+    let _serial = serial();
+    let Some(target) = admin_target() else {
+        eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
+        return;
+    };
+    let pool = Pool::new(target, 2);
+    let session = pool.get().await.expect("connect");
+    let started = Instant::now();
+    let (result, _) = tokio::join!(session.client.simple_query("select pg_sleep(30)"), async {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        session.cancel().await;
+    });
+    let elapsed = started.elapsed();
+    println!(
+        "cancelled after {} ms: {:?}",
+        elapsed.as_millis(),
+        result.as_ref().map(|_| ()).map_err(|e| e.to_string())
+    );
+    assert!(result.is_err());
+    assert!(elapsed < Duration::from_secs(10), "cancel took {elapsed:?}");
+    assert!(session.is_closed());
+    drop(session);
+
+    // The pool does not hand the closed session out again.
+    let next = pool.get().await.expect("reconnect");
+    assert!(!next.is_closed());
+    next.client
+        .simple_query("select 1")
+        .await
+        .expect("new session works");
+}
+
+#[tokio::test]
+async fn it_pool_reuses_idle_sessions() {
+    let _serial = serial();
+    let Some(target) = admin_target() else {
+        eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
+        return;
+    };
+    let pool = Pool::new(target, 2);
+    let first = pool.get().await.expect("connect").opened_at;
+    let second = pool.get().await.expect("reuse");
+    assert_eq!(second.opened_at, first, "the idle session should be reused");
+    let third = pool.get().await.expect("second slot");
+    assert_ne!(third.opened_at, first);
+}
+
+#[tokio::test]
+async fn it_lists_test_schema_tables() {
+    let _serial = serial();
+    let Some(target) = admin_target() else {
+        eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
+        return;
+    };
+    let schema = target.schema.clone().unwrap();
+    let session = conn::connect(&target).await.expect("connect as admin");
+    let started = Instant::now();
+
+    let schemas = catalog::schemas(&session).await.expect("schemas");
+    let names: Vec<&str> = schemas.iter().map(|s| s.name.as_str()).collect();
+    assert!(names.contains(&schema.as_str()), "{names:?}");
+    for system in ["pg_catalog", "information_schema", "sys", "pg_toast"] {
+        assert!(!names.contains(&system), "{names:?}");
+    }
+
+    let tables = catalog::tables(&session, &schema).await.expect("tables");
+    assert!(!tables.is_empty());
+    let owner = &tables[0].owner;
+    assert_ne!(owner, "admin");
+    for t in &tables {
+        assert_eq!(&t.owner, owner, "all tables belong to the app role");
+        assert!(!t.can_select, "admin cannot read {} until granted", t.name);
+    }
+
+    // Catalog queries work on tables admin cannot read, including hostile names.
+    for t in &tables {
+        let cols = catalog::columns(&session, &schema, &t.name)
+            .await
+            .expect("columns");
+        let pk = catalog::primary_key(&session, &schema, &t.name)
+            .await
+            .expect("primary key");
+        let idx = catalog::indexes(&session, &schema, &t.name)
+            .await
+            .expect("indexes");
+        assert_eq!(cols.iter().filter(|c| c.is_pk).count(), pk.len());
+        println!(
+            "{}: {} columns, pk {:?}, indexes {:?}",
+            t.name,
+            cols.len(),
+            pk,
+            idx
+        );
+    }
+    println!("catalog read in {} ms", started.elapsed().as_millis());
+
+    let role_default = catalog::role_search_path(&session)
+        .await
+        .expect("role config");
+    println!("admin's own search_path setting: {role_default:?}");
+}
+
+#[tokio::test]
+async fn it_run_script_multi_statement() {
+    let _serial = serial();
+    use dsql_core::exec::{StatementOutcome, run_script};
+    let Some(target) = admin_target() else {
+        eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
+        return;
+    };
+    let session = conn::connect(&target).await.expect("connect as admin");
+
+    let script = "select 1 as a; \
+                  select null::text as n, ''::text as e, 'NULL'::text as s; \
+                  select generate_series(1, 25) as g; \
+                  select * from users; \
+                  select 2";
+    let result = run_script(&session, script, 10).await;
+    println!(
+        "{} outcomes in {} ms",
+        result.outcomes.len(),
+        result.duration_ms
+    );
+    assert_eq!(
+        result.outcomes.len(),
+        4,
+        "stops at the first error: {:?}",
+        result.outcomes
+    );
+    let StatementOutcome::Rows(one) = &result.outcomes[0] else {
+        panic!("{:?}", result.outcomes[0])
+    };
+    assert_eq!(
+        (one.columns.clone(), one.rows.clone()),
+        (vec!["a".to_string()], vec![vec![Some("1".to_string())]])
+    );
+    let StatementOutcome::Rows(nulls) = &result.outcomes[1] else {
+        panic!("{:?}", result.outcomes[1])
+    };
+    assert_eq!(
+        nulls.rows,
+        vec![vec![None, Some(String::new()), Some("NULL".to_string())]]
+    );
+    let StatementOutcome::Rows(series) = &result.outcomes[2] else {
+        panic!("{:?}", result.outcomes[2])
+    };
+    assert_eq!(series.rows.len(), 10);
+    assert!(series.truncated);
+    let StatementOutcome::Error(dsql_core::CoreError::Db { sqlstate, .. }) = &result.outcomes[3]
+    else {
+        panic!("{:?}", result.outcomes[3])
+    };
+    assert_eq!(
+        sqlstate.as_deref(),
+        Some("42501"),
+        "admin cannot read the app's tables"
+    );
+
+    // The session is still usable after a truncated result and an error.
+    let after = run_script(&session, "select 'ok'", 10).await;
+    assert!(
+        matches!(&after.outcomes[0], StatementOutcome::Rows(r) if r.rows == vec![vec![Some("ok".to_string())]])
+    );
+
+    // Two DDL statements in one script work because each statement runs on its own (DSQL allows one DDL per
+    // transaction). Scratch tables in public, removed at the end.
+    let _ = run_script(
+        &session,
+        "drop table if exists public.it_exec_a; drop table if exists public.it_exec_b",
+        10,
+    )
+    .await;
+    let ddl = run_script(
+        &session,
+        "create table public.it_exec_a (id int primary key); create table public.it_exec_b (id int primary key); \
+         insert into public.it_exec_a values (1), (2); drop table public.it_exec_a; drop table public.it_exec_b",
+        10,
+    )
+    .await;
+    let tags: Vec<String> = ddl
+        .outcomes
+        .iter()
+        .map(|o| match o {
+            StatementOutcome::Command { tag, rows_affected } => format!("{tag} {rows_affected}"),
+            other => format!("{other:?}"),
+        })
+        .collect();
+    assert_eq!(
+        tags,
+        [
+            "CREATE TABLE 0",
+            "CREATE TABLE 0",
+            "INSERT 2",
+            "DROP TABLE 0",
+            "DROP TABLE 0"
+        ]
+    );
+}
+
+#[tokio::test]
+async fn it_explains_real_errors() {
+    let _serial = serial();
+    use dsql_core::exec::{StatementOutcome, run_script};
+    use dsql_core::explain::{ExplainContext, FixAction, explain};
+    let Some(target) = admin_target() else {
+        eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
+        return;
+    };
+    let schema = target.schema.clone().unwrap();
+    let in_public = Target {
+        schema: None,
+        ..target.clone()
+    };
+    let session = conn::connect(&in_public).await.expect("connect as admin");
+    let ctx = ExplainContext {
+        role: "admin".into(),
+        search_path: Some("public".into()),
+        caller_arn: None,
+        is_admin: true,
+        known_tables: catalog::tables(&session, &schema).await.expect("tables"),
+    };
+    let error_of = |r: dsql_core::exec::ScriptResult| match r.outcomes.into_iter().last() {
+        Some(StatementOutcome::Error(e)) => e,
+        other => panic!("expected an error, got {other:?}"),
+    };
+
+    let missing = error_of(run_script(&session, "select * from users", 10).await);
+    let e = explain(&missing, &ctx);
+    println!("{}: {}", e.title, e.body);
+    assert_eq!(e.fix, FixAction::SwitchSchema(schema.clone()));
+
+    let denied = error_of(run_script(&session, &format!("select * from {schema}.users"), 10).await);
+    let e = explain(&denied, &ctx);
+    println!("{}: {}", e.title, e.body);
+    let FixAction::ShowGrant { owner, sql, .. } = e.fix else {
+        panic!("{:?}", e.fix)
+    };
+    assert_ne!(owner, "admin");
+    assert_eq!(
+        sql,
+        format!("GRANT SELECT ON \"{schema}\".\"users\" TO \"admin\";")
+    );
+
+    let nobody = Target {
+        role: DbRole::Custom("it_no_such_role".into()),
+        ..in_public
+    };
+    let refused = conn::connect(&nobody)
+        .await
+        .err()
+        .expect("an unmapped role is refused");
+    let e = explain(
+        &refused,
+        &ExplainContext {
+            role: "it_no_such_role".into(),
+            is_admin: false,
+            ..ctx
+        },
+    );
+    println!("{}: {}", e.title, e.body);
+    assert!(e.body.contains("AWS IAM GRANT"));
+}
+
+/// Grid edits against a scratch table in `public`, created and dropped by the test. Also checks that a lost
+/// optimistic-concurrency conflict really surfaces as 40001, which `apply` retries.
+#[tokio::test]
+async fn it_apply_update_roundtrip() {
+    let _serial = serial();
+    use dsql_core::edits::{self, ChangeSet, MAX_ROWS_PER_TX, RowUpdate, Values};
+    use dsql_core::occ::is_occ;
+    let Some(mut target) = admin_target() else {
+        eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
+        return;
+    };
+    target.schema = Some("public".into());
+    let table = format!("arco_it_edits_{}", std::process::id());
+    let admin = conn::connect(&target).await.expect("connect as admin");
+    // Drop what an earlier, interrupted run left behind.
+    for row in admin
+        .client
+        .query(
+            "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename LIKE 'arco\\_it\\_edits\\_%'",
+            &[],
+        )
+        .await
+        .expect("leftover tables")
+    {
+        let name: String = row.get(0);
+        admin
+            .client
+            .batch_execute(&format!("DROP TABLE public.{name}"))
+            .await
+            .expect("drop a leftover scratch table");
+    }
+    if let Err(err) = admin
+        .client
+        .batch_execute(&format!(
+            "CREATE TABLE public.{table} (id bigint PRIMARY KEY, name text, note text)"
+        ))
+        .await
+    {
+        eprintln!("skipped: cannot create a table in public: {err}");
+        return;
+    }
+
+    let vals = |pairs: &[(&str, Option<&str>)]| -> Values {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.map(str::to_string)))
+            .collect()
+    };
+    let pool = Pool::new(target.clone(), 2);
+    let mut cs = ChangeSet {
+        schema: "public".into(),
+        table: table.clone(),
+        pk: vec!["id".into()],
+        column_types: [("id", "bigint"), ("name", "text"), ("note", "text")]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
+        ..ChangeSet::default()
+    };
+    cs.inserts = (1..=3)
+        .map(|i| vals(&[("id", Some(&i.to_string())), ("name", Some("O'Brien"))]))
+        .collect();
+    let run = |cs: &ChangeSet| {
+        let stmts = edits::build_statements(cs).expect("statements");
+        edits::apply(&pool, edits::batches(stmts, MAX_ROWS_PER_TX), 3)
+    };
+    let inserted = run(&cs).await;
+
+    cs.inserts.clear();
+    cs.updates = vec![
+        RowUpdate {
+            pk_values: vals(&[("id", Some("1"))]),
+            set: vals(&[("name", None), ("note", Some(""))]),
+        },
+        RowUpdate {
+            pk_values: vals(&[("id", Some("99"))]),
+            set: vals(&[("name", Some("gone"))]),
+        },
+    ];
+    cs.deletes = vec![vals(&[("id", Some("2"))])];
+    let changed = run(&cs).await;
+
+    let rows: Vec<(i64, Option<String>, Option<String>)> = admin
+        .client
+        .query(
+            &format!("SELECT id, name, note FROM public.{table} ORDER BY id"),
+            &[],
+        )
+        .await
+        .expect("read back")
+        .iter()
+        .map(|r| (r.get(0), r.get(1), r.get(2)))
+        .collect();
+
+    // A lost conflict: A updates a row, B commits a change to it, then A's COMMIT fails.
+    let other = conn::connect(&target).await.expect("second connection");
+    admin.client.batch_execute("BEGIN").await.expect("begin a");
+    admin
+        .client
+        .batch_execute(&format!(
+            "UPDATE public.{table} SET note = 'a' WHERE id = 3"
+        ))
+        .await
+        .expect("update a");
+    other
+        .client
+        .batch_execute(&format!(
+            "UPDATE public.{table} SET note = 'b' WHERE id = 3"
+        ))
+        .await
+        .expect("update b");
+    let conflict = admin.client.batch_execute("COMMIT").await;
+    let _ = admin.client.batch_execute("ROLLBACK").await;
+
+    admin
+        .client
+        .batch_execute(&format!("DROP TABLE public.{table}"))
+        .await
+        .expect("drop the scratch table");
+
+    assert_eq!(inserted.error, None, "{inserted:?}");
+    assert_eq!((inserted.batches_applied, inserted.rows_affected), (1, 3));
+    assert_eq!(changed.error, None, "{changed:?}");
+    assert_eq!((changed.rows_affected, changed.rows_missing), (2, 1));
+    assert_eq!(
+        rows,
+        [
+            (1, None, Some(String::new())),
+            (3, Some("O'Brien".to_string()), None)
+        ]
+    );
+    let err = conn_error(conflict.expect_err("the second writer wins"));
+    println!("conflict: {err:?}");
+    assert!(is_occ(&err), "{err:?}");
+}
+
+fn conn_error(err: tokio_postgres::Error) -> dsql_core::CoreError {
+    let db = err.as_db_error().expect("a server error");
+    dsql_core::CoreError::Db {
+        sqlstate: Some(db.code().code().to_string()),
+        message: db.message().to_string(),
+        detail: None,
+        hint: None,
+    }
+}
+
+/// The role wizard end to end on the test schema: create a read-only role mapped to the caller's IAM role, run the
+/// owner grants through admin's temporary membership in the tables' owner, sign in as the new role, then remove it.
+/// Skipped unless `admin` holds ADMIN OPTION on the owner (true on the spike fixture, where `admin` created it).
+#[tokio::test]
+async fn it_role_lifecycle() {
+    let _serial = serial();
+    use dsql_core::roles::{self, Access};
+    let Some(target) = admin_target() else {
+        eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
+        return;
+    };
+    let schema = target.schema.clone().unwrap();
+    let admin = conn::connect(&target).await.expect("connect as admin");
+    let tables = catalog::tables(&admin, &schema).await.expect("tables");
+    let Some(owner) = tables.first().map(|t| t.owner.clone()) else {
+        eprintln!("skipped: no tables in {schema}");
+        return;
+    };
+    if !roles::admin_can_take_over(&admin, &owner)
+        .await
+        .expect("admin option")
+    {
+        eprintln!("skipped: admin cannot act as {owner}");
+        return;
+    }
+    let names: Vec<String> = tables.iter().map(|t| t.name.clone()).collect();
+
+    // The IAM role behind the profile, resolved as the wizard does.
+    let cfg = identity::sdk_config(&target.profile, &target.region)
+        .await
+        .expect("credentials");
+    let me = identity::caller_identity(&cfg)
+        .await
+        .expect("caller identity");
+    let role_name = identity::assumed_role_name(&me.arn).expect("an assumed role");
+    let arn = match identity::iam_role_arn(&cfg, &role_name).await {
+        Ok(arn) => arn,
+        Err(_) => identity::sso_role_arn_guess(&me.account, &role_name, &target.region),
+    };
+
+    let role = format!("arco_it_role_{}", std::process::id());
+    let run = async |sql: &[String]| -> Result<(), String> {
+        for stmt in sql {
+            admin
+                .client
+                .batch_execute(stmt)
+                .await
+                .map_err(|e| format!("{stmt}: {e:?}"))?;
+        }
+        Ok(())
+    };
+    let create = roles::create_plan(&role, &arn, &schema, &names, Access::ReadOnly).unwrap();
+    let created = match run(&create.admin_sql).await {
+        Ok(()) => {
+            run(&roles::grant_owner_privileges_via_admin_plan(
+                &owner,
+                &create.owner_sql,
+            ))
+            .await
+        }
+        Err(e) => Err(e),
+    };
+    let mapped = roles::existing_mappings(&admin).await.expect("mappings");
+
+    // Signed in as the new role: its search_path is the schema, it can read and not write.
+    let (select, insert) = match &created {
+        Ok(()) => {
+            let as_role = Target {
+                role: DbRole::Custom(role.clone()),
+                schema: None,
+                ..target.clone()
+            };
+            let s = conn::connect(&as_role)
+                .await
+                .expect("connect as the new role");
+            let table = dsql_core::quote::ident(&names[0]);
+            let select = s
+                .client
+                .batch_execute(&format!("select * from {table} limit 1"))
+                .await;
+            let insert = s
+                .client
+                .batch_execute(&format!("insert into {table} default values"))
+                .await;
+            (
+                select.map_err(|e| format!("{e:?}")),
+                insert.map_err(|e| format!("{e:?}")),
+            )
+        }
+        Err(_) => (Err("not created".into()), Err("not created".into())),
+    };
+
+    let remove = roles::remove_plan(&role, &arn, &schema, &names).unwrap();
+    let removed = match run(&roles::grant_owner_privileges_via_admin_plan(
+        &owner,
+        &remove.owner_sql,
+    ))
+    .await
+    {
+        Ok(()) => run(&remove.admin_sql).await,
+        Err(e) => Err(e),
+    };
+    let left = admin
+        .client
+        .query("select 1 from pg_roles where rolname = $1", &[&role])
+        .await
+        .expect("pg_roles")
+        .len();
+    let mappings_after = roles::existing_mappings(&admin).await.expect("mappings");
+
+    created.expect("create plan");
+    assert!(mapped.contains(&(role.clone(), arn.clone())), "{mapped:?}");
+    select.expect("the read-only role can SELECT");
+    let insert_err = insert.expect_err("the read-only role cannot INSERT");
+    assert!(insert_err.contains("42501"), "{insert_err}");
+    removed.expect("remove plan");
+    assert_eq!(left, 0, "role dropped");
+    assert!(
+        mappings_after.iter().all(|(r, _)| r != &role),
+        "{mappings_after:?}"
+    );
+}
+
+/// Invokes an Arco Cloud console Lambda with a harmless snippet that prints a word and touches no data. Needs
+/// `DSQL_CONSOLE_FUNCTION`; it runs inside a real app, so set it only with the owner's OK.
+#[tokio::test]
+async fn it_console_tinker() {
+    let _serial = serial();
+    let Some((profile, region)) = aws_env() else {
+        eprintln!("skipped: AWS_PROFILE and DSQL_REGION not set");
+        return;
+    };
+    let Some(function) = std::env::var("DSQL_CONSOLE_FUNCTION")
+        .ok()
+        .filter(|v| !v.is_empty())
+    else {
+        eprintln!("skipped: DSQL_CONSOLE_FUNCTION not set");
+        return;
+    };
+    let cfg = identity::sdk_config(&profile, &region)
+        .await
+        .expect("credentials");
+    let output = dsql_core::console::run_tinker(&cfg, &function, "echo \"arco-\" . 'dsql-studio';")
+        .await
+        .expect("console invocation");
+    println!("console output: {output:?}");
+    assert!(output.contains("arco-dsql-studio"), "{output}");
+}
