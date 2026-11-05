@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use dsql_core::conn::{self, Pool, Target};
 use dsql_core::token::DbRole;
-use dsql_core::{clusters, identity};
+use dsql_core::{catalog, clusters, identity};
 
 /// `AWS_PROFILE` and `DSQL_REGION`, or `None` (test skipped) when either is unset.
 fn aws_env() -> Option<(String, String)> {
@@ -166,4 +166,58 @@ async fn it_pool_reuses_idle_sessions() {
     assert_eq!(second.opened_at, first, "the idle session should be reused");
     let third = pool.get().await.expect("second slot");
     assert_ne!(third.opened_at, first);
+}
+
+#[tokio::test]
+async fn it_lists_test_schema_tables() {
+    let Some(target) = admin_target() else {
+        eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
+        return;
+    };
+    let schema = target.schema.clone().unwrap();
+    let session = conn::connect(&target).await.expect("connect as admin");
+    let started = Instant::now();
+
+    let schemas = catalog::schemas(&session).await.expect("schemas");
+    let names: Vec<&str> = schemas.iter().map(|s| s.name.as_str()).collect();
+    assert!(names.contains(&schema.as_str()), "{names:?}");
+    for system in ["pg_catalog", "information_schema", "sys", "pg_toast"] {
+        assert!(!names.contains(&system), "{names:?}");
+    }
+
+    let tables = catalog::tables(&session, &schema).await.expect("tables");
+    assert!(!tables.is_empty());
+    let owner = &tables[0].owner;
+    assert_ne!(owner, "admin");
+    for t in &tables {
+        assert_eq!(&t.owner, owner, "all tables belong to the app role");
+        assert!(!t.can_select, "admin cannot read {} until granted", t.name);
+    }
+
+    // Catalog queries work on tables admin cannot read, including hostile names.
+    for t in &tables {
+        let cols = catalog::columns(&session, &schema, &t.name)
+            .await
+            .expect("columns");
+        let pk = catalog::primary_key(&session, &schema, &t.name)
+            .await
+            .expect("primary key");
+        let idx = catalog::indexes(&session, &schema, &t.name)
+            .await
+            .expect("indexes");
+        assert_eq!(cols.iter().filter(|c| c.is_pk).count(), pk.len());
+        println!(
+            "{}: {} columns, pk {:?}, indexes {:?}",
+            t.name,
+            cols.len(),
+            pk,
+            idx
+        );
+    }
+    println!("catalog read in {} ms", started.elapsed().as_millis());
+
+    let role_default = catalog::role_search_path(&session)
+        .await
+        .expect("role config");
+    println!("admin's own search_path setting: {role_default:?}");
 }

@@ -1,5 +1,6 @@
 //! Core of Arco DSQL Studio: everything that talks to AWS and Aurora DSQL, testable without Tauri.
 
+pub mod catalog;
 pub mod clusters;
 pub mod conn;
 pub mod error;

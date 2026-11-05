@@ -20,8 +20,9 @@ Instructions for AI agents (and people) building this repository.
 - 2026-11-04: Task 2 done (`profiles.rs`: list and append AWS profiles).
 - 2026-11-04: Task 3 done (`sso.rs`, `identity.rs`: device login, CLI-compatible cache, caller identity).
 - 2026-11-05: Task 4 done (`clusters.rs`: clusters across regions).
-- 2026-11-05: Task 5 done (`token.rs`, `conn.rs`: IAM tokens, verify-full TLS, cancel, recycling pool). Next: Task 6
-  (catalog).
+- 2026-11-05: Task 5 done (`token.rs`, `conn.rs`: IAM tokens, verify-full TLS, cancel, recycling pool).
+- 2026-11-05: Task 6 done (`catalog.rs`: schemas, tables, columns, keys, default schema). Next: Task 7 (run SQL,
+  history).
 
 ## Rules
 

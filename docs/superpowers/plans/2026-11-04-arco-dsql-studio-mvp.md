@@ -229,9 +229,11 @@ Done 2026-11-05. Also `connect_with(cfg, target)` (the pool loads credentials on
   - `pub async fn columns(s, schema, table)`, `pub async fn indexes(s, schema, table)`, `pub async fn primary_key(s, schema, table) -> Result<Vec<String>>` (only the first `indnkeyatts` entries of `pg_index.indkey`: DSQL primary-key indexes cover every column, Task 1 Step 4; test `primary_key_uses_key_columns_only` on the SQL).
   - `pub fn pick_default_schema(schemas: &[SchemaInfo], role: &DbRole, current_user: &str) -> Option<String>` — rules in order: the role's own default search_path schema if it exists; the only non-public schema; a schema equal to `current_user`; else the schema matching `^[a-z0-9_]+_(production|staging|[a-z0-9]+)$` with the most tables is **not** guessed — return `None` and let the UI ask.
   - `pub fn looks_like_production(schema: &str, tags: &BTreeMap<String,String>) -> bool` (suffix `_production`/`_prod`, or a tag value `production`).
-- [ ] **Step 1: Failing tests:** `pick_default_single_schema`, `pick_default_schema_named_like_user`, `pick_default_none_when_ambiguous`, `looks_like_production_suffix`, `looks_like_production_tag`.
-- [ ] **Step 2–4:** FAIL → implement → PASS. Gated `it_lists_test_schema_tables` (≥1 table, all owned by the app role, `can_select == false` as admin unless granted).
-- [ ] **Step 5:** Commit `feat(core): catalog queries and default schema`.
+- [x] **Step 1: Failing tests:** `pick_default_single_schema`, `pick_default_schema_named_like_user`, `pick_default_none_when_ambiguous`, `looks_like_production_suffix`, `looks_like_production_tag`.
+- [x] **Step 2–4:** FAIL → implement → PASS. Gated `it_lists_test_schema_tables` (≥1 table, all owned by the app role, `can_select == false` as admin unless granted).
+- [x] **Step 5:** Commit `feat(core): catalog queries and default schema`.
+
+Done 2026-11-05. `pick_default_schema` takes `role_search_path: Option<&str>` instead of `&DbRole` (the role's own `ALTER ROLE ... SET search_path`, read by the new `role_search_path(s)` from `pg_roles.rolconfig` and parsed by `first_schema_in_role_config`, quotes included). `indexes` lists key columns only. Live on `spike_app` as admin: tables listed with `can_select = false`, primary keys `["id"]`, the table without a primary key has none. Reading the whole catalog for 3 tables took ~4 s (each query is a ~150 ms round trip), so the tree in Task 14 must load columns and indexes only when a table is expanded.
 
 ### Task 7: Running SQL, results, history
 
