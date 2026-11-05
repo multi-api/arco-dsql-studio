@@ -6,6 +6,7 @@ pub mod clusters;
 pub mod conn;
 pub mod error;
 pub mod exec;
+pub mod explain;
 pub mod identity;
 pub mod profiles;
 pub mod quote;

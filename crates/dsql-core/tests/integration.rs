@@ -317,3 +317,66 @@ async fn it_run_script_multi_statement() {
         ]
     );
 }
+
+#[tokio::test]
+async fn it_explains_real_errors() {
+    use dsql_core::exec::{StatementOutcome, run_script};
+    use dsql_core::explain::{ExplainContext, FixAction, explain};
+    let Some(target) = admin_target() else {
+        eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
+        return;
+    };
+    let schema = target.schema.clone().unwrap();
+    let in_public = Target {
+        schema: None,
+        ..target.clone()
+    };
+    let session = conn::connect(&in_public).await.expect("connect as admin");
+    let ctx = ExplainContext {
+        role: "admin".into(),
+        search_path: Some("public".into()),
+        caller_arn: None,
+        is_admin: true,
+        known_tables: catalog::tables(&session, &schema).await.expect("tables"),
+    };
+    let error_of = |r: dsql_core::exec::ScriptResult| match r.outcomes.into_iter().last() {
+        Some(StatementOutcome::Error(e)) => e,
+        other => panic!("expected an error, got {other:?}"),
+    };
+
+    let missing = error_of(run_script(&session, "select * from users", 10).await);
+    let e = explain(&missing, &ctx);
+    println!("{}: {}", e.title, e.body);
+    assert_eq!(e.fix, FixAction::SwitchSchema(schema.clone()));
+
+    let denied = error_of(run_script(&session, &format!("select * from {schema}.users"), 10).await);
+    let e = explain(&denied, &ctx);
+    println!("{}: {}", e.title, e.body);
+    let FixAction::ShowGrant { owner, sql, .. } = e.fix else {
+        panic!("{:?}", e.fix)
+    };
+    assert_ne!(owner, "admin");
+    assert_eq!(
+        sql,
+        format!("GRANT SELECT ON \"{schema}\".\"users\" TO \"admin\";")
+    );
+
+    let nobody = Target {
+        role: DbRole::Custom("it_no_such_role".into()),
+        ..in_public
+    };
+    let refused = conn::connect(&nobody)
+        .await
+        .err()
+        .expect("an unmapped role is refused");
+    let e = explain(
+        &refused,
+        &ExplainContext {
+            role: "it_no_such_role".into(),
+            is_admin: false,
+            ..ctx
+        },
+    );
+    println!("{}: {}", e.title, e.body);
+    assert!(e.body.contains("AWS IAM GRANT"));
+}
