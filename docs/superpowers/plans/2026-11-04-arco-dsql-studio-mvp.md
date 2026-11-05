@@ -187,10 +187,12 @@ Done 2026-11-04. `SsoToken`'s client and refresh fields are `Option` (legacy CLI
   - `pub async fn list_clusters(base: &SdkConfig, regions: &[&str]) -> (Vec<ClusterInfo>, Vec<(String, CoreError)>)` (parallel; access denied / not-available regions go into the second vector, never fail the whole call).
   - `pub fn parse_endpoint(host: &str) -> Option<(String, String)>` (identifier, region) for manual entry.
 
-- [ ] **Step 1: Failing tests:** `endpoint_format`, `parse_endpoint_roundtrip`, `parse_endpoint_rejects_non_dsql_host`.
-- [ ] **Step 2–4:** FAIL → implement (ListClusters paginated, then GetCluster per cluster for status/endpoint, ListTagsForResource for tags) → PASS.
-- [ ] **Step 5:** Gated integration test `it_lists_test_cluster` (asserts the `DSQL_HOST` cluster is in the list).
-- [ ] **Step 6:** Commit `feat(core): discover DSQL clusters across regions`.
+- [x] **Step 1: Failing tests:** `endpoint_format`, `parse_endpoint_roundtrip`, `parse_endpoint_rejects_non_dsql_host`.
+- [x] **Step 2–4:** FAIL → implement (ListClusters paginated, then GetCluster per cluster for status/endpoint, ListTagsForResource for tags) → PASS.
+- [x] **Step 5:** Gated integration test `it_lists_test_cluster` (asserts the `DSQL_HOST` cluster is in the list).
+- [x] **Step 6:** Commit `feat(core): discover DSQL clusters across regions`.
+
+Done 2026-11-05. `DSQL_REGIONS` (20) comes from AWS's public SSM parameters, not the docs. `GetCluster` already returns the tags, so `ListTagsForResource` is not called (Task 17's IAM table: check whether `dsql:GetCluster` alone shows tags for a least-privilege role). Live: 2 clusters across 20 regions in ~3 s; the 4 opt-in regions not enabled on the account failed with `UnrecognizedClientException` and were skipped as `NotAvailableInRegion`.
 
 ### Task 5: Tokens, TLS connections and the pool
 

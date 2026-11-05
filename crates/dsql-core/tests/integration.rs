@@ -3,7 +3,7 @@
 //! Each test is skipped (passes without doing anything) unless the environment variables it needs are set; see
 //! `docs/development.md`. Never commit real values.
 
-use dsql_core::identity;
+use dsql_core::{clusters, identity};
 
 /// `AWS_PROFILE` and `DSQL_REGION`, or `None` (test skipped) when either is unset.
 fn aws_env() -> Option<(String, String)> {
@@ -43,4 +43,44 @@ async fn it_caller_identity() {
             ),
         }
     }
+}
+
+#[tokio::test]
+async fn it_lists_test_cluster() {
+    let Some((profile, region)) = aws_env() else {
+        eprintln!("skipped: AWS_PROFILE and DSQL_REGION not set");
+        return;
+    };
+    let Ok(host) = std::env::var("DSQL_HOST") else {
+        eprintln!("skipped: DSQL_HOST not set");
+        return;
+    };
+    let (id, host_region) = clusters::parse_endpoint(&host).expect("DSQL_HOST is a DSQL endpoint");
+    assert_eq!(host_region, region);
+
+    let cfg = identity::sdk_config(&profile, &region)
+        .await
+        .expect("credentials");
+    let started = std::time::Instant::now();
+    let (found, failures) = clusters::list_clusters(&cfg, clusters::DSQL_REGIONS).await;
+    println!(
+        "{} clusters, {} regions skipped, in {} ms",
+        found.len(),
+        failures.len(),
+        started.elapsed().as_millis()
+    );
+    for (r, e) in &failures {
+        println!("skipped {r}: {e}");
+    }
+    let test = found
+        .iter()
+        .find(|c| c.identifier == id)
+        .expect("test cluster listed");
+    assert_eq!(test.region, region);
+    assert_eq!(test.endpoint, clusters::endpoint(&id, &region));
+    assert_eq!(test.status, "ACTIVE");
+    println!(
+        "test cluster tags: {:?}",
+        test.tags.keys().collect::<Vec<_>>()
+    );
 }

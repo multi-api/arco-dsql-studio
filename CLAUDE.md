@@ -18,8 +18,8 @@ Instructions for AI agents (and people) building this repository.
 - 2026-11-04: Task 0 done (Tauri 2 scaffold, `dsql-core` with `CoreError`, Vitest; see `docs/development.md`).
 - 2026-11-04: Task 1 done on a scratch cluster the owner approved (not an Arco app); see `docs/spike-findings.md`.
 - 2026-11-04: Task 2 done (`profiles.rs`: list and append AWS profiles).
-- 2026-11-04: Task 3 done (`sso.rs`, `identity.rs`: device login, CLI-compatible cache, caller identity). Next: Task 4
-  (cluster discovery).
+- 2026-11-04: Task 3 done (`sso.rs`, `identity.rs`: device login, CLI-compatible cache, caller identity).
+- 2026-11-05: Task 4 done (`clusters.rs`: clusters across regions). Next: Task 5 (tokens, TLS, pool).
 
 ## Rules
 
