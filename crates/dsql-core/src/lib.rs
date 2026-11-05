@@ -4,10 +4,13 @@ pub mod catalog;
 pub mod clusters;
 pub mod conn;
 pub mod error;
+pub mod exec;
 pub mod identity;
 pub mod profiles;
 pub mod quote;
+pub mod split;
 pub mod sso;
+pub mod store;
 pub mod token;
 
 pub use error::{AwsErrorKind, CoreError};

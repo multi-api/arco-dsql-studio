@@ -251,9 +251,11 @@ Done 2026-11-05. `pick_default_schema` takes `role_search_path: Option<&str>` in
   - `pub struct Store` (`rusqlite`, file `studio.sqlite` in the Tauri app data dir) with `open(path)`, `save_connection(&SavedConnection) -> i64`, `list_connections()`, `delete_connection(id)`, `add_history(&HistoryEntry)`, `search_history(q: &str, limit: usize)`, `clear_history()`, `get_setting/set_setting`.
   - `pub struct SavedConnection { id: Option<i64>, name, profile, region, cluster_id, host, role: String /*"admin" or name*/, schema: Option<String>, production: bool, read_only: bool }`; `HistoryEntry { connection_id, sql, started_at, duration_ms, rows: Option<u64>, error: Option<String> }`.
   - Schema migrations by `PRAGMA user_version`.
-- [ ] **Step 1: Failing tests:** `simple_query_preserves_null` (unit test on the row-conversion function: `SimpleQueryRow` value `None` → `None`, `""` → `Some("")`, `"NULL"` → `Some("NULL")`), `run_script_caps_rows` (conversion of 10,001 rows with `max_rows=10_000` → 10,000 rows, `truncated == true`), `store_roundtrip_connection`, `store_history_search`, `store_holds_no_secret_columns` (schema has no column named like `token|secret|password|key`).
-- [ ] **Step 2–4:** FAIL → implement → PASS. Gated `it_run_script_multi_statement`.
-- [ ] **Step 5:** Commit `feat(core): run SQL scripts and keep local history`.
+- [x] **Step 1: Failing tests:** `simple_query_preserves_null` (unit test on the row-conversion function: `SimpleQueryRow` value `None` → `None`, `""` → `Some("")`, `"NULL"` → `Some("NULL")`), `run_script_caps_rows` (conversion of 10,001 rows with `max_rows=10_000` → 10,000 rows, `truncated == true`), `store_roundtrip_connection`, `store_history_search`, `store_holds_no_secret_columns` (schema has no column named like `token|secret|password|key`).
+- [x] **Step 2–4:** FAIL → implement → PASS. Gated `it_run_script_multi_statement`.
+- [x] **Step 5:** Commit `feat(core): run SQL scripts and keep local history`.
+
+Done 2026-11-05. New `split.rs` (`split_statements`: `;` outside quotes, comments, nested block comments, `E''` escapes and dollar quotes): `run_script` runs each statement on its own, because Postgres wraps a multi-statement simple query in one implicit transaction and DSQL allows one DDL per transaction. Task 8's keyword fallback reuses `split_statements`. `run_script` streams with `simple_query_raw` and stops reading at the cap. `Command.tag` comes from the statement's leading keywords (`command_tag`), since tokio-postgres only returns the row count. `HistoryEntry` gained `id`; its `connection_id` is optional; the settings table uses `name`/`value` columns. Live: NULL, `''` and `'NULL'` stay distinct, a 25-row result capped at 10 is marked truncated, the script stops at `42501`, and a script with two `CREATE TABLE`s runs.
 
 ### Task 8: Statement classification (spec 6.6)
 

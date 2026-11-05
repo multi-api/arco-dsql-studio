@@ -221,3 +221,99 @@ async fn it_lists_test_schema_tables() {
         .expect("role config");
     println!("admin's own search_path setting: {role_default:?}");
 }
+
+#[tokio::test]
+async fn it_run_script_multi_statement() {
+    use dsql_core::exec::{StatementOutcome, run_script};
+    let Some(target) = admin_target() else {
+        eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
+        return;
+    };
+    let session = conn::connect(&target).await.expect("connect as admin");
+
+    let script = "select 1 as a; \
+                  select null::text as n, ''::text as e, 'NULL'::text as s; \
+                  select generate_series(1, 25) as g; \
+                  select * from users; \
+                  select 2";
+    let result = run_script(&session, script, 10).await;
+    println!(
+        "{} outcomes in {} ms",
+        result.outcomes.len(),
+        result.duration_ms
+    );
+    assert_eq!(
+        result.outcomes.len(),
+        4,
+        "stops at the first error: {:?}",
+        result.outcomes
+    );
+    let StatementOutcome::Rows(one) = &result.outcomes[0] else {
+        panic!("{:?}", result.outcomes[0])
+    };
+    assert_eq!(
+        (one.columns.clone(), one.rows.clone()),
+        (vec!["a".to_string()], vec![vec![Some("1".to_string())]])
+    );
+    let StatementOutcome::Rows(nulls) = &result.outcomes[1] else {
+        panic!("{:?}", result.outcomes[1])
+    };
+    assert_eq!(
+        nulls.rows,
+        vec![vec![None, Some(String::new()), Some("NULL".to_string())]]
+    );
+    let StatementOutcome::Rows(series) = &result.outcomes[2] else {
+        panic!("{:?}", result.outcomes[2])
+    };
+    assert_eq!(series.rows.len(), 10);
+    assert!(series.truncated);
+    let StatementOutcome::Error(dsql_core::CoreError::Db { sqlstate, .. }) = &result.outcomes[3]
+    else {
+        panic!("{:?}", result.outcomes[3])
+    };
+    assert_eq!(
+        sqlstate.as_deref(),
+        Some("42501"),
+        "admin cannot read the app's tables"
+    );
+
+    // The session is still usable after a truncated result and an error.
+    let after = run_script(&session, "select 'ok'", 10).await;
+    assert!(
+        matches!(&after.outcomes[0], StatementOutcome::Rows(r) if r.rows == vec![vec![Some("ok".to_string())]])
+    );
+
+    // Two DDL statements in one script work because each statement runs on its own (DSQL allows one DDL per
+    // transaction). Scratch tables in public, removed at the end.
+    let _ = run_script(
+        &session,
+        "drop table if exists public.it_exec_a; drop table if exists public.it_exec_b",
+        10,
+    )
+    .await;
+    let ddl = run_script(
+        &session,
+        "create table public.it_exec_a (id int primary key); create table public.it_exec_b (id int primary key); \
+         insert into public.it_exec_a values (1), (2); drop table public.it_exec_a; drop table public.it_exec_b",
+        10,
+    )
+    .await;
+    let tags: Vec<String> = ddl
+        .outcomes
+        .iter()
+        .map(|o| match o {
+            StatementOutcome::Command { tag, rows_affected } => format!("{tag} {rows_affected}"),
+            other => format!("{other:?}"),
+        })
+        .collect();
+    assert_eq!(
+        tags,
+        [
+            "CREATE TABLE 0",
+            "CREATE TABLE 0",
+            "INSERT 2",
+            "DROP TABLE 0",
+            "DROP TABLE 0"
+        ]
+    );
+}
