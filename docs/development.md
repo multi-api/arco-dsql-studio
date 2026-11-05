@@ -32,6 +32,8 @@ npm run tauri dev           # run the app with hot reload; opens the "Arco DSQL 
 npm test                    # UI tests (Vitest + Testing Library, jsdom)
 cargo test -p dsql-core     # Rust core unit tests
 cargo test --workspace      # every Rust test, including the Tauri app crate
+cargo fmt --all             # format Rust code (CI-style check: cargo fmt --all -- --check)
+cargo clippy --workspace --all-targets   # lints; keep it warning-free
 npm run build               # type-check and build the UI into dist/
 npm run tauri build         # release bundle (.app/.dmg on macOS)
 ```

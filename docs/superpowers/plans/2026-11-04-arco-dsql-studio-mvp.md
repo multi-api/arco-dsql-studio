@@ -134,7 +134,7 @@ Done 2026-11-04, see `docs/spike-findings.md`. The owner chose a scratch cluster
   - `pub fn render_sso_profile(p: &NewSsoProfile) -> String` and `pub fn append_profile(paths: &AwsPaths, block: &str) -> Result<(), CoreError>`
   - `pub struct NewSsoProfile { profile: String, session: String, start_url: String, sso_region: String, account_id: String, role_name: String, region: String }`
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
   - `lists_sso_session_profile` (profile with `sso_session = corp` + `[sso-session corp]` → kind Sso, start url resolved from the session).
   - `lists_legacy_sso_profile`.
   - `lists_access_key_profile_from_credentials_only` (a profile present only in `credentials` → AccessKeys).
@@ -142,9 +142,11 @@ Done 2026-11-04, see `docs/spike-findings.md`. The owner chose a scratch cluster
   - `render_sso_profile_matches_cli_format` (exact text: `[profile x]\nsso_session = s\nsso_account_id = ...\nsso_role_name = ...\nregion = ...\n\n[sso-session s]\nsso_start_url = ...\nsso_region = ...\nsso_registration_scopes = sso:account:access\n`).
   - `append_never_rewrites_existing_lines` (file bytes before are a prefix of bytes after).
   - `append_refuses_existing_profile_name` → `CoreError::Config`.
-- [ ] **Step 2:** Run `cargo test -p dsql-core profiles` → FAIL.
-- [ ] **Step 3:** Implement with a small INI reader (sections `[profile x]`, `[default]`, `[sso-session x]`; `#`/`;` comments; ignore unknown keys).
-- [ ] **Step 4:** Run → PASS. Commit `feat(core): list and append AWS profiles`.
+- [x] **Step 2:** Run `cargo test -p dsql-core profiles` → FAIL.
+- [x] **Step 3:** Implement with a small INI reader (sections `[profile x]`, `[default]`, `[sso-session x]`; `#`/`;` comments; ignore unknown keys).
+- [x] **Step 4:** Run → PASS. Commit `feat(core): list and append AWS profiles`.
+
+Done 2026-11-04. Extra tests beyond the list: assume-role and process kinds, nested settings ignored, profile order, missing files, a missing config created on append, duplicate `[sso-session]` refused, `AWS_CONFIG_FILE`/`AWS_SHARED_CREDENTIALS_FILE` overrides. Checked by hand against a real SSO profile on Windows.
 
 ### Task 3: SSO sign-in, credentials and identity
 

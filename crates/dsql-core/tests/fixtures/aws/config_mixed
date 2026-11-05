@@ -1,0 +1,35 @@
+# Sample ~/.aws/config covering every profile kind. All values are fake.
+[default]
+region = us-east-1
+output = json
+
+[profile corp-dev]
+sso_session = corp
+sso_account_id = 111111111111
+sso_role_name = Developer
+region = eu-west-1
+
+[sso-session corp]
+sso_start_url = https://corp.awsapps.com/start
+sso_region = us-east-1
+sso_registration_scopes = sso:account:access
+
+; legacy SSO: the start URL and region live in the profile itself
+[profile legacy-sso]
+sso_start_url = https://legacy.awsapps.com/start
+sso_region = us-west-2
+sso_account_id = 222222222222
+sso_role_name = ReadOnly
+
+[profile assume]
+role_arn = arn:aws:iam::333333333333:role/Admin
+source_profile = default
+
+[profile proc]
+credential_process = /usr/local/bin/get-creds --profile proc
+
+[profile with-nested]
+region = us-east-2
+s3 =
+  max_concurrent_requests = 10
+aws_access_key_id = AKIAEXAMPLEEXAMPLE00

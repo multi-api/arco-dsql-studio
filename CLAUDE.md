@@ -17,7 +17,7 @@ Instructions for AI agents (and people) building this repository.
 - 2026-11-04: spec, plan, README, licence.
 - 2026-11-04: Task 0 done (Tauri 2 scaffold, `dsql-core` with `CoreError`, Vitest; see `docs/development.md`).
 - 2026-11-04: Task 1 done on a scratch cluster the owner approved (not an Arco app); see `docs/spike-findings.md`.
-  Next: Task 2 (AWS profiles).
+- 2026-11-04: Task 2 done (`profiles.rs`: list and append AWS profiles). Next: Task 3 (SSO sign-in, identity).
 
 ## Rules
 
