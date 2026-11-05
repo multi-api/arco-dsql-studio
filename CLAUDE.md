@@ -27,7 +27,9 @@ Instructions for AI agents (and people) building this repository.
 - 2026-11-05: Task 7 done (`split.rs`, `exec.rs`, `store.rs`: run scripts, local history).
 - 2026-11-05: Task 8 done (`classify.rs`, `rules.rs`: statement kinds and DSQL warnings).
 - 2026-11-05: Task 9 done (`explain.rs`: plain-language errors with a fix).
-- 2026-11-05: Task 10 done (`edits.rs`, `occ.rs`: grid change sets, batching under DSQL's limits, OCC retry). Next: Task 11 (role wizard and the Arco console).
+- 2026-11-05: Task 10 done (`edits.rs`, `occ.rs`: grid change sets, batching under DSQL's limits, OCC retry).
+- 2026-11-05: Task 11 done (`roles.rs`, `console.rs`: role wizard plans, admin takeover, console Lambda). Next: Task 12
+  (Tauri commands).
 
 ## Rules
 

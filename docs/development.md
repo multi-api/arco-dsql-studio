@@ -48,11 +48,12 @@ Integration tests run against a real Aurora DSQL cluster and are skipped when th
 | `DSQL_REGION` | Cluster region |
 | `AWS_PROFILE` | AWS profile used to sign in |
 | `DSQL_TEST_SCHEMA` | Schema holding the test tables |
-| `DSQL_CONSOLE_FUNCTION` | Arco console Lambda, for the role wizard test |
+| `DSQL_CONSOLE_FUNCTION` | Arco console Lambda for `it_console_tinker`, which runs a harmless `echo` inside a real app: set it only with the owner's OK |
 
 On a scratch cluster, `cargo run -p dsql-core --example spike -- setup` (see below) creates the test schema
 `spike_app`: tables owned by a role `spike_owner`, which `admin` cannot read, as in an Arco app. Use
-`DSQL_TEST_SCHEMA=spike_app`.
+`DSQL_TEST_SCHEMA=spike_app`. `it_role_lifecycle` runs the owner grants there through `admin`'s temporary membership in
+`spike_owner` (no console Lambda needed) and removes the role it creates.
 
 This repository is public: never commit real values (account IDs, cluster IDs, ARNs, profile names, SSO start URLs).
 Keep them in your shell or in a `.env` file, which is git-ignored.

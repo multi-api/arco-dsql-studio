@@ -324,10 +324,12 @@ Done 2026-11-05. `quote.rs` already existed (Task 4); Task 10 added `literal`. `
   - `pub async fn existing_mappings(s: &Session) -> Result<Vec<(String, String)>>` (`sys.iam_pg_role_mappings`).
   - `pub fn console_function_name(schema: &str) -> String` (`myapp_staging` → `myapp-staging-console`: `_` → `-`, suffix `-console`; the UI lets the user correct it).
   - `pub async fn run_tinker(cfg: &SdkConfig, function: &str, php: &str) -> Result<String, CoreError>` (Lambda Invoke, qualifier `live`, payload `{"command":"tinker --execute=\"<escaped php>\""}`; return the output; map FunctionError to `CoreError::Aws{Other}` with the output).
-- [ ] **Step 1: Failing tests:** `role_plan_quotes_schema`, `create_plan_readonly_grants_select_only`, `create_plan_readwrite`, `remove_plan_revokes_before_drop` (owner_sql all REVOKE; admin_sql ends with `DROP ROLE`; `AWS IAM REVOKE` before it), `owner_tinker_escapes_quotes`, `console_function_name_from_schema`, `tinker_payload_escaping` (php with `"` and `\` → valid JSON whose `command` decodes back).
-- [ ] **Step 2–4:** FAIL → implement → PASS.
-- [ ] **Step 5:** Gated `it_role_lifecycle` (owner's OK required; needs `DSQL_CONSOLE_FUNCTION`): create readonly role → connect as it → SELECT works, INSERT denied → remove → `DROP ROLE` succeeded, no mapping left.
-- [ ] **Step 6:** Commit `feat(core): role wizard plans and Arco console invocation`.
+- [x] **Step 1: Failing tests:** `role_plan_quotes_schema`, `create_plan_readonly_grants_select_only`, `create_plan_readwrite`, `remove_plan_revokes_before_drop` (owner_sql all REVOKE; admin_sql ends with `DROP ROLE`; `AWS IAM REVOKE` before it), `owner_tinker_escapes_quotes`, `console_function_name_from_schema`, `tinker_payload_escaping` (php with `"` and `\` → valid JSON whose `command` decodes back).
+- [x] **Step 2–4:** FAIL → implement → PASS.
+- [x] **Step 5:** Gated `it_role_lifecycle` (owner's OK required; needs `DSQL_CONSOLE_FUNCTION`): create readonly role → connect as it → SELECT works, INSERT denied → remove → `DROP ROLE` succeeded, no mapping left.
+- [x] **Step 6:** Commit `feat(core): role wizard plans and Arco console invocation`.
+
+Done 2026-11-05. `create_plan` and `remove_plan` return `Result`: they refuse an empty, reserved (`admin`, `public`, `pg_*`) or over-63-byte role name and an ARN that is not an IAM role ARN (an STS assumed-role ARN is the usual mistake). `remove_plan`'s owner side is `REVOKE ALL ON ...`, so it works whatever access was granted. The tinker snippet is one `DB::statement('...');` per statement; the console payload escapes `\`, `"`, `$` and backticks, since the command may go through a shell. `console_output` reads `{"output": <base64 or text>, "statusCode": n}`, a JSON string, or raw text; a `FunctionError` or non-zero status is an error with the output. Probed live: `AWS IAM GRANT` accepts a quoted role name; `sys.iam_pg_role_mappings` has `pg_role_name` and `arn`. `it_role_lifecycle` ran on the scratch cluster through the admin takeover (no console Lambda there): create read-only role, connect as it, SELECT works, INSERT fails with 42501, remove, no role or mapping left. `it_console_tinker` (a harmless `echo`) is gated on `DSQL_CONSOLE_FUNCTION` and has not run yet: it needs a real Arco app and the owner's OK.
 
 ### Task 12: Tauri commands
 

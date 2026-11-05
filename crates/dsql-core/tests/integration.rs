@@ -508,3 +508,150 @@ fn conn_error(err: tokio_postgres::Error) -> dsql_core::CoreError {
         hint: None,
     }
 }
+
+/// The role wizard end to end on the test schema: create a read-only role mapped to the caller's IAM role, run the
+/// owner grants through admin's temporary membership in the tables' owner, sign in as the new role, then remove it.
+/// Skipped unless `admin` holds ADMIN OPTION on the owner (true on the spike fixture, where `admin` created it).
+#[tokio::test]
+async fn it_role_lifecycle() {
+    use dsql_core::roles::{self, Access};
+    let Some(target) = admin_target() else {
+        eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
+        return;
+    };
+    let schema = target.schema.clone().unwrap();
+    let admin = conn::connect(&target).await.expect("connect as admin");
+    let tables = catalog::tables(&admin, &schema).await.expect("tables");
+    let Some(owner) = tables.first().map(|t| t.owner.clone()) else {
+        eprintln!("skipped: no tables in {schema}");
+        return;
+    };
+    if !roles::admin_can_take_over(&admin, &owner)
+        .await
+        .expect("admin option")
+    {
+        eprintln!("skipped: admin cannot act as {owner}");
+        return;
+    }
+    let names: Vec<String> = tables.iter().map(|t| t.name.clone()).collect();
+
+    // The IAM role behind the profile, resolved as the wizard does.
+    let cfg = identity::sdk_config(&target.profile, &target.region)
+        .await
+        .expect("credentials");
+    let me = identity::caller_identity(&cfg)
+        .await
+        .expect("caller identity");
+    let role_name = identity::assumed_role_name(&me.arn).expect("an assumed role");
+    let arn = match identity::iam_role_arn(&cfg, &role_name).await {
+        Ok(arn) => arn,
+        Err(_) => identity::sso_role_arn_guess(&me.account, &role_name, &target.region),
+    };
+
+    let role = format!("arco_it_role_{}", std::process::id());
+    let run = async |sql: &[String]| -> Result<(), String> {
+        for stmt in sql {
+            admin
+                .client
+                .batch_execute(stmt)
+                .await
+                .map_err(|e| format!("{stmt}: {e:?}"))?;
+        }
+        Ok(())
+    };
+    let create = roles::create_plan(&role, &arn, &schema, &names, Access::ReadOnly).unwrap();
+    let created = match run(&create.admin_sql).await {
+        Ok(()) => {
+            run(&roles::grant_owner_privileges_via_admin_plan(
+                &owner,
+                &create.owner_sql,
+            ))
+            .await
+        }
+        Err(e) => Err(e),
+    };
+    let mapped = roles::existing_mappings(&admin).await.expect("mappings");
+
+    // Signed in as the new role: its search_path is the schema, it can read and not write.
+    let (select, insert) = match &created {
+        Ok(()) => {
+            let as_role = Target {
+                role: DbRole::Custom(role.clone()),
+                schema: None,
+                ..target.clone()
+            };
+            let s = conn::connect(&as_role)
+                .await
+                .expect("connect as the new role");
+            let table = dsql_core::quote::ident(&names[0]);
+            let select = s
+                .client
+                .batch_execute(&format!("select * from {table} limit 1"))
+                .await;
+            let insert = s
+                .client
+                .batch_execute(&format!("insert into {table} default values"))
+                .await;
+            (
+                select.map_err(|e| format!("{e:?}")),
+                insert.map_err(|e| format!("{e:?}")),
+            )
+        }
+        Err(_) => (Err("not created".into()), Err("not created".into())),
+    };
+
+    let remove = roles::remove_plan(&role, &arn, &schema, &names).unwrap();
+    let removed = match run(&roles::grant_owner_privileges_via_admin_plan(
+        &owner,
+        &remove.owner_sql,
+    ))
+    .await
+    {
+        Ok(()) => run(&remove.admin_sql).await,
+        Err(e) => Err(e),
+    };
+    let left = admin
+        .client
+        .query("select 1 from pg_roles where rolname = $1", &[&role])
+        .await
+        .expect("pg_roles")
+        .len();
+    let mappings_after = roles::existing_mappings(&admin).await.expect("mappings");
+
+    created.expect("create plan");
+    assert!(mapped.contains(&(role.clone(), arn.clone())), "{mapped:?}");
+    select.expect("the read-only role can SELECT");
+    let insert_err = insert.expect_err("the read-only role cannot INSERT");
+    assert!(insert_err.contains("42501"), "{insert_err}");
+    removed.expect("remove plan");
+    assert_eq!(left, 0, "role dropped");
+    assert!(
+        mappings_after.iter().all(|(r, _)| r != &role),
+        "{mappings_after:?}"
+    );
+}
+
+/// Invokes an Arco Cloud console Lambda with a harmless snippet that prints a word and touches no data. Needs
+/// `DSQL_CONSOLE_FUNCTION`; it runs inside a real app, so set it only with the owner's OK.
+#[tokio::test]
+async fn it_console_tinker() {
+    let Some((profile, region)) = aws_env() else {
+        eprintln!("skipped: AWS_PROFILE and DSQL_REGION not set");
+        return;
+    };
+    let Some(function) = std::env::var("DSQL_CONSOLE_FUNCTION")
+        .ok()
+        .filter(|v| !v.is_empty())
+    else {
+        eprintln!("skipped: DSQL_CONSOLE_FUNCTION not set");
+        return;
+    };
+    let cfg = identity::sdk_config(&profile, &region)
+        .await
+        .expect("credentials");
+    let output = dsql_core::console::run_tinker(&cfg, &function, "echo \"arco-\" . 'dsql-studio';")
+        .await
+        .expect("console invocation");
+    println!("console output: {output:?}");
+    assert!(output.contains("arco-dsql-studio"), "{output}");
+}
