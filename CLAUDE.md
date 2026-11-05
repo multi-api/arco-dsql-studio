@@ -8,6 +8,7 @@ Instructions for AI agents (and people) building this repository.
 - How, task by task: `docs/superpowers/plans/2026-11-04-arco-dsql-studio-mvp.md`. Follow it in order; tick the
   checkboxes as you go and commit the plan with each task. If a spike result changes a decision, update the plan and
   the spec in the same commit and say why.
+- Brand (logo, colors, font) for the UI and the app icon: `assets/brand/README.md`.
 - Reference for DSQL roles and schemas: the "Querying the database yourself" section of Arco Cloud's
   `docs/databases.md`, summarised in spec section 6.5. DSQL's unsupported features: the README of
   [`multiapi/laravel-aurora-dsql`](https://github.com/multi-api/laravel-aurora-dsql).

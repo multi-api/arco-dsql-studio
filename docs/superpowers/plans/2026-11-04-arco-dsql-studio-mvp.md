@@ -25,6 +25,7 @@
 - Talk to the owner in Spanish; code, comments, docs and commit messages in English.
 - Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Nothing is pushed, no GitHub repo is created, nothing is published without the owner's explicit "si".
 - Every user-visible behaviour is documented (README + `docs/`), in the same task that builds it.
+- The UI uses the Arco brand in `assets/brand/README.md` (logo, `#C93F1C` tile, light and dark primaries, Instrument Sans); never recolor the logo. App icons are generated from `assets/brand/arco-logo-1024.png` with `npm run tauri icon` (desktop sizes only).
 
 ## Review Focus
 
