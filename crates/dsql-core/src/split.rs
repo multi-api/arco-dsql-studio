@@ -3,24 +3,59 @@
 //! Scripts run one statement at a time: Postgres runs a multi-statement simple query in one implicit transaction, and
 //! DSQL allows a single DDL statement per transaction, so `CREATE TABLE a ...; CREATE TABLE b ...;` must be two calls.
 
+use std::ops::Range;
+
 /// The statements of `sql`, trimmed, without their trailing `;`. Empty statements and comment-only pieces are
 /// dropped; comments inside a statement are kept.
 pub fn split_statements(sql: &str) -> Vec<String> {
     let chars: Vec<char> = sql.chars().collect();
-    let mut statements = Vec::new();
+    statement_ranges(sql)
+        .into_iter()
+        .map(|r| chars[r].iter().collect())
+        .collect()
+}
+
+/// The statement the editor's cursor is in, for "Run statement at cursor". `cursor` is a UTF-16 offset, as JavaScript
+/// counts. A cursor between statements picks the one before it, or the first one when it is before them all.
+pub fn statement_at(sql: &str, cursor: usize) -> Option<String> {
+    let chars: Vec<char> = sql.chars().collect();
+    let mut units = 0;
+    let at = chars
+        .iter()
+        .position(|c| {
+            let past = units >= cursor;
+            units += c.len_utf16();
+            past
+        })
+        .unwrap_or(chars.len());
+    let ranges = statement_ranges(sql);
+    let range = ranges
+        .iter()
+        .find(|r| r.start <= at && at <= r.end)
+        .or_else(|| ranges.iter().rev().find(|r| r.start <= at))
+        .or_else(|| ranges.first())?;
+    Some(chars[range.clone()].iter().collect())
+}
+
+/// Char ranges of the statements of `sql`, trimmed of whitespace; see `split_statements`.
+pub fn statement_ranges(sql: &str) -> Vec<Range<usize>> {
+    let chars: Vec<char> = sql.chars().collect();
+    let mut ranges = Vec::new();
     let mut start = 0;
     let mut has_code = false;
     let mut i = 0;
 
     let mut finish = |from: usize, to: usize, has_code: bool| {
         if has_code {
-            statements.push(
-                chars[from..to]
-                    .iter()
-                    .collect::<String>()
-                    .trim()
-                    .to_string(),
-            );
+            let mut a = from;
+            let mut b = to;
+            while a < b && chars[a].is_whitespace() {
+                a += 1;
+            }
+            while b > a && chars[b - 1].is_whitespace() {
+                b -= 1;
+            }
+            ranges.push(a..b);
         }
     };
 
@@ -72,7 +107,7 @@ pub fn split_statements(sql: &str) -> Vec<String> {
         i += 1;
     }
     finish(start, chars.len(), has_code);
-    statements
+    ranges
 }
 
 fn is_ident_char(c: char) -> bool {
@@ -194,6 +229,49 @@ mod tests {
         );
         assert_eq!(split_statements("/* header */"), Vec::<String>::new());
         assert_eq!(split_statements(""), Vec::<String>::new());
+    }
+
+    #[test]
+    fn statement_at_cursor() {
+        let sql = "select 1;
+
+select 'a;b' from t;  -- note
+select 3";
+        let at = |needle: &str| statement_at(sql, sql.find(needle).unwrap());
+        assert_eq!(at("1;").as_deref(), Some("select 1"));
+        assert_eq!(at("a;b").as_deref(), Some("select 'a;b' from t"));
+        // Right after a statement's `;`, and in the blank lines after it: that statement.
+        assert_eq!(statement_at(sql, 9).as_deref(), Some("select 1"));
+        assert_eq!(statement_at(sql, 10).as_deref(), Some("select 1"));
+        // A comment before a statement belongs to it, as when the script runs.
+        assert_eq!(
+            at("3").as_deref(),
+            Some(
+                "-- note
+select 3"
+            )
+        );
+        assert_eq!(
+            statement_at(sql, sql.len()).as_deref(),
+            Some(
+                "-- note
+select 3"
+            )
+        );
+        assert_eq!(statement_at("  select 1", 0).as_deref(), Some("select 1"));
+        assert_eq!(statement_at("-- only a comment", 3), None);
+    }
+
+    #[test]
+    fn statement_at_counts_utf16_like_javascript() {
+        // "😀" is two UTF-16 units: the cursor after it is offset 2 in JavaScript, 1 char in Rust.
+        let sql = "select '😀'; select 2";
+        let js_offset_of_second = "select '😀'; ".encode_utf16().count();
+        assert_eq!(
+            statement_at(sql, js_offset_of_second).as_deref(),
+            Some("select 2")
+        );
+        assert_eq!(statement_at(sql, 9).as_deref(), Some("select '😀'"));
     }
 
     #[test]

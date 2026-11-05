@@ -186,6 +186,14 @@ export interface Classified {
   statements: ClassifiedStatement[];
 }
 
+export interface SqlCheck {
+  classified: Classified;
+  /** The connection is read-only and the SQL writes or changes the schema. */
+  blocked: boolean;
+  /** The connection is production and the SQL writes or changes the schema. */
+  needs_confirmation: boolean;
+}
+
 /** Column name to value; null is SQL NULL. */
 export type Values = Record<string, string | null>;
 

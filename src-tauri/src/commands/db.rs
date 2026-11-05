@@ -60,6 +60,18 @@ pub struct PageRequest {
     pub where_sql: Option<String>,
 }
 
+/// What the editor needs before running SQL: the statements with their kinds and DSQL warnings, and whether this
+/// connection blocks it (read-only) or must ask first (production).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SqlCheck {
+    pub classified: Classified,
+    pub blocked: bool,
+    pub needs_confirmation: bool,
+}
+
+/// The setting that turns the query history off when set to `"off"`.
+pub const HISTORY_SETTING: &str = "history";
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TablePage {
     pub result: ResultSet,
@@ -203,8 +215,29 @@ pub fn classify_sql(sql: String) -> Classified {
     classify::classify(&sql)
 }
 
-/// Runs a script statement by statement and records it in the history. A read-only connection refuses anything that
-/// is not a read before sending it.
+#[tauri::command]
+pub fn check_sql(
+    state: State<'_, AppState>,
+    id: String,
+    sql: String,
+) -> Result<SqlCheck, CoreError> {
+    let conn = state.connection(&id)?;
+    let classified = classify::classify(&sql);
+    Ok(SqlCheck {
+        blocked: conn.saved.read_only && classify::blocked_by_read_only(&classified),
+        needs_confirmation: classify::needs_confirmation(&classified, conn.saved.production),
+        classified,
+    })
+}
+
+/// The statement under the editor's cursor (`cursor` in UTF-16 units, as JavaScript counts).
+#[tauri::command]
+pub fn statement_at(sql: String, cursor: usize) -> Option<String> {
+    dsql_core::split::statement_at(&sql, cursor)
+}
+
+/// Runs a script statement by statement and records it in the history (unless the `history` setting is `off`). A
+/// read-only connection refuses anything that is not a read before sending it.
 #[tauri::command]
 pub async fn run_sql(
     state: State<'_, AppState>,
@@ -221,6 +254,9 @@ pub async fn run_sql(
     let result = run_tracked(&conn, &sql, MAX_ROWS).await;
     let (rows, error) = summarize(&result);
     state.with_store(|store| {
+        if store.get_setting(HISTORY_SETTING)?.as_deref() == Some("off") {
+            return Ok(0);
+        }
         store.add_history(&HistoryEntry {
             id: None,
             connection_id: conn.saved.id,
@@ -332,9 +368,11 @@ pub async fn explain_error_offline(
     Ok(explain::explain(&err, &ctx))
 }
 
-/// Runs `sql` on a pooled session while `cancel` can reach it.
+/// Runs `sql` on a pooled session while `cancel` can reach it. Each run may get a different pooled session, so a
+/// transaction must begin and end in the same run: a script with BEGIN, COMMIT or ROLLBACK closes its session
+/// afterwards, which rolls back anything it left open instead of handing an open transaction to the next run.
 pub async fn run_tracked(conn: &OpenConnection, sql: &str, max_rows: usize) -> ScriptResult {
-    let s = match conn.pool().get().await {
+    let mut s = match conn.pool().get().await {
         Ok(s) => s,
         Err(err) => {
             return ScriptResult {
@@ -347,8 +385,18 @@ pub async fn run_tracked(conn: &OpenConnection, sql: &str, max_rows: usize) -> S
     let started = Instant::now();
     let mut result = exec::run_script(&s, sql, max_rows).await;
     *conn.running.lock().expect("running lock") = None;
+    if touches_transactions(sql) {
+        s.discard();
+    }
     result.duration_ms = result.duration_ms.max(started.elapsed().as_millis() as u64);
     result
+}
+
+fn touches_transactions(sql: &str) -> bool {
+    classify::classify(sql)
+        .statements
+        .iter()
+        .any(|st| st.kind == StatementKind::Transaction)
 }
 
 /// Rows returned or changed, and the error message, for the history.
@@ -495,6 +543,15 @@ mod tests {
         assert!(matches!(
             table_page_sql("s", "t", &p),
             Err(CoreError::Config(_))
+        ));
+    }
+
+    #[test]
+    fn scripts_with_transactions_close_their_session() {
+        assert!(touches_transactions("begin; insert into t values (1)"));
+        assert!(touches_transactions("insert into t values (1); commit"));
+        assert!(!touches_transactions(
+            "select 'begin'; insert into t values (1)"
         ));
     }
 

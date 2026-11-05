@@ -56,6 +56,14 @@ fn ipc_offline_commands() {
         "truncate"
     );
 
+    let at: Option<String> = call(
+        &w,
+        "statement_at",
+        json!({ "sql": "select 1; select 2", "cursor": 12 }),
+    )
+    .unwrap();
+    assert_eq!(at.as_deref(), Some("select 2"));
+
     let batches: Vec<Vec<String>> = call(
         &w,
         "preview_changes",
@@ -152,6 +160,19 @@ fn ipc_live_connection() {
         call(&w, "list_tables", json!({ "id": id, "schema": schema })).unwrap();
     let table = tables[0]["name"].as_str().unwrap().to_string();
 
+    let check: Value = call(&w, "check_sql", json!({ "id": id, "sql": "truncate t" })).unwrap();
+    assert_eq!(
+        (
+            check["blocked"].as_bool(),
+            check["needs_confirmation"].as_bool()
+        ),
+        (Some(false), Some(false))
+    );
+    assert_eq!(
+        check["classified"]["statements"][0]["findings"][0]["rule_id"],
+        "truncate"
+    );
+
     let script: Value = call(
         &w,
         "run_sql",
@@ -185,6 +206,13 @@ fn ipc_live_connection() {
 
     let ro: Value = call(&w, "open_connection", saved(true)).unwrap();
     let ro_id = ro["id"].as_str().unwrap();
+    let check: Value = call(
+        &w,
+        "check_sql",
+        json!({ "id": ro_id, "sql": "delete from t" }),
+    )
+    .unwrap();
+    assert_eq!(check["blocked"], true);
     let err = call::<Value>(
         &w,
         "run_sql",

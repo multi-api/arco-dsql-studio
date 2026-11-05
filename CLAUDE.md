@@ -30,8 +30,9 @@ Instructions for AI agents (and people) building this repository.
 - 2026-11-05: Task 10 done (`edits.rs`, `occ.rs`: grid change sets, batching under DSQL's limits, OCC retry).
 - 2026-11-05: Task 11 done (`roles.rs`, `console.rs`: role wizard plans, admin takeover, console Lambda).
 - 2026-11-05: Task 12 done (Tauri commands over `dsql-core`, `src/api.ts`, IPC tests).
-- 2026-11-05: Task 13 done (welcome, AWS setup, cluster picker, connect; `docs/connecting.md`). Next: Task 14
-  (workspace: schema tree, SQL editor, results, history).
+- 2026-11-05: Task 13 done (welcome, AWS setup, cluster picker, connect; `docs/connecting.md`).
+- 2026-11-05: Task 14 done, MVP milestone (workspace: schema tree, SQL editor, results, history;
+  `docs/working-with-data.md`). Next: Task 15 (table browser and editing).
 
 ## Rules
 

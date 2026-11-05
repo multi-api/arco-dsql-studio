@@ -8,6 +8,7 @@ import ClusterPicker, { type ClusterChoice } from "./screens/ClusterPicker";
 import Connect from "./screens/Connect";
 import SetupAws from "./screens/SetupAws";
 import Welcome from "./screens/Welcome";
+import Workspace from "./screens/Workspace";
 import type { ConnectionHandle, Explanation, ProfileInfo, SavedConnection } from "./types";
 
 type Screen =
@@ -37,6 +38,19 @@ function App() {
   async function afterSetup(profileName: string) {
     const profile = (await listProfiles()).find((p) => p.name === profileName);
     setScreen(profile ? { name: "clusters", profile } : { name: "welcome" });
+  }
+
+  if (screen.name === "connected") {
+    return (
+      <Workspace
+        handle={screen.handle}
+        saved={screen.saved}
+        onDisconnect={() => {
+          closeConnection(screen.handle.id).catch(() => {});
+          setScreen({ name: "welcome" });
+        }}
+      />
+    );
   }
 
   return (
@@ -86,34 +100,6 @@ function App() {
             onConnected={(handle, saved) => setScreen({ name: "connected", handle, saved })}
             onBack={() => setScreen({ name: "clusters", profile: screen.profile })}
           />
-        )}
-        {screen.name === "connected" && (
-          <section className="panel">
-            <h2>{screen.saved.name}</h2>
-            <p>
-              Connected as <strong>{screen.handle.current_user}</strong>
-              {screen.handle.schema && (
-                <>
-                  {" "}
-                  in schema <strong>{screen.handle.schema}</strong>
-                </>
-              )}
-              .
-            </p>
-            <p className="muted">The workspace (schema tree, SQL editor, results) comes next.</p>
-            <div className="actions">
-              <button
-                type="button"
-                className="ghost"
-                onClick={() => {
-                  closeConnection(screen.handle.id).catch(() => {});
-                  setScreen({ name: "welcome" });
-                }}
-              >
-                Disconnect
-              </button>
-            </div>
-          </section>
         )}
       </main>
     </div>

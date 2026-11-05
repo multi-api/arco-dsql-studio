@@ -48,6 +48,8 @@ pub fn with_commands<R: Runtime>(builder: Builder<R>) -> Builder<R> {
         db::table_page,
         db::looks_like_production,
         db::classify_sql,
+        db::check_sql,
+        db::statement_at,
         db::run_sql,
         db::cancel,
         db::preview_changes,

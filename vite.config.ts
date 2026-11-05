@@ -31,6 +31,11 @@ export default defineConfig(() => ({
     },
   },
 
+  build: {
+    // The app loads its files from disk, so one larger bundle (mostly CodeMirror) costs nothing.
+    chunkSizeWarningLimit: 1500,
+  },
+
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test-setup.ts"],

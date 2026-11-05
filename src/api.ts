@@ -24,6 +24,7 @@ import type {
   SavedConnection,
   SchemaInfo,
   ScriptResult,
+  SqlCheck,
   SsoAccountRole,
   SsoLoginStarted,
   TableInfo,
@@ -93,6 +94,16 @@ export const looksLikeProduction = (schema: string, tags: Record<string, string>
   invoke<boolean>("looks_like_production", { schema, tags });
 
 export const classifySql = (sql: string) => invoke<Classified>("classify_sql", { sql });
+
+/** Classifies `sql` with this connection's read-only and production flags. */
+export const checkSql = (id: string, sql: string) => invoke<SqlCheck>("check_sql", { id, sql });
+
+/** The statement under the cursor; `cursor` is a JavaScript string offset. */
+export const statementAt = (sql: string, cursor: number) =>
+  invoke<string | null>("statement_at", { sql, cursor });
+
+/** The setting that turns the history off when "off". */
+export const HISTORY_SETTING = "history";
 
 export const runSql = (id: string, sql: string) => invoke<ScriptResult>("run_sql", { id, sql });
 
