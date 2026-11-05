@@ -392,10 +392,12 @@ Done 2026-11-05. `TableBrowser` opens in its own tab kind from the tree (Open / 
 **Files:** Create `src/components/RoleWizard.tsx`, `src/components/CheckAccess.tsx`.
 
 - Behaviour (spec 5.7): steps — access (read-only / read-write) → IAM role (default from caller identity via `iam_role_arn`, fallback `sso_role_arn_guess`, editable) → role name → review of admin SQL and owner SQL → run admin SQL → owner step with three choices: "Run it for me" (console Lambda, function name editable, shows tinker code and output), "Copy tinker snippet", "Copy SQL" — plus "Let admin do it (temporary)" only when `admin_can_take_over` is true (Task 1 Step 5: works through role membership, no `SET ROLE`), with an explanation and explicit consent, revoking right after → test connection as the new role → offer to save it as a connection. "Remove role" flow in the right order. "Check access" table: each table × SELECT/INSERT/UPDATE/DELETE for the current role, with the exact grant for missing ones.
-- [ ] **Step 1:** Failing tests: `wizard_shows_sql_before_running`, `remove_flow_orders_revokes_first`, `admin_takeover_hidden_unless_supported`, `check_access_lists_missing_grants`.
-- [ ] **Step 2–4:** FAIL → implement → PASS.
+- [x] **Step 1:** Failing tests: `wizard_shows_sql_before_running`, `remove_flow_orders_revokes_first`, `admin_takeover_hidden_unless_supported`, `check_access_lists_missing_grants`.
+- [x] **Step 2–4:** FAIL → implement → PASS.
 - [ ] **Step 5:** Manual end-to-end on the test cluster with the owner's OK: create readonly role, run owner grants via console, connect as it, remove it, confirm the cluster is clean.
-- [ ] **Step 6:** Write `docs/team-access.md` (the recipe, what each step does, permissions needed incl. `lambda:InvokeFunction`, removal). Commit `feat(ui): role wizard and access check`.
+- [x] **Step 6:** Write `docs/team-access.md` (the recipe, what each step does, permissions needed incl. `lambda:InvokeFunction`, removal). Commit `feat(ui): role wizard and access check`.
+
+Done 2026-11-05 except Step 5. The tools open as tabs from the top bar's **Access…** menu (Check my access for everyone; Give the team access and Remove a role only as `admin`). The owner step offers Run it for me (console Lambda, name guessed from the schema and editable), copy tinker, copy SQL, and Let admin do it (temporary) only when `role_admin_can_take_over` is true, behind an explicit consent checkbox; if a grant fails the final `REVOKE "<owner>" FROM admin` still runs. After the grants: Test signs in as the new role, Save as a connection adds it (read-only for read-only roles). Remove a role enables the admin step (IAM revoke, schema usage, DROP ROLE) only after the owner's revokes. **Pending review:** the owner did not finish the manual end-to-end (Step 5) and will check it later; the console Lambda path (Run it for me, `it_console_tinker`) has never run against a real Arco app.
 
 ### Task 17: macOS build, README, wrap-up
 

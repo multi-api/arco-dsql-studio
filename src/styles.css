@@ -928,3 +928,56 @@ body.resizing * {
   cursor: col-resize !important;
   user-select: none;
 }
+
+/* Access tools */
+.tool {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 16px;
+  overflow: auto;
+  max-width: 980px;
+}
+
+.wizard .steps,
+.owner-step {
+  display: grid;
+  gap: 10px;
+}
+
+.wizard h3 {
+  margin-top: 6px;
+}
+
+table.access {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+table.access th,
+table.access td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+table.access td.yes {
+  color: var(--ok);
+  text-align: center;
+}
+
+table.access td.no {
+  color: var(--danger);
+  text-align: center;
+}
+
+table.access code {
+  font-family: var(--mono);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.ok-text {
+  color: var(--ok);
+}

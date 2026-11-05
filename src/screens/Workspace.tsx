@@ -7,6 +7,7 @@ import {
   listSchemas,
   listTables,
   runSql,
+  saveConnection,
   setSchema,
   statementAt,
   tableColumns,
@@ -16,6 +17,8 @@ import HistoryPanel from "../components/HistoryPanel";
 import ResultsGrid from "../components/ResultsGrid";
 import SchemaTree from "../components/SchemaTree";
 import SqlEditor, { type Selection } from "../components/SqlEditor";
+import CheckAccess from "../components/CheckAccess";
+import RoleWizard from "../components/RoleWizard";
 import TableBrowser from "../components/TableBrowser";
 import TopBar from "../components/TopBar";
 import { errorText } from "../errors";
@@ -44,7 +47,17 @@ interface Tab {
   notice: string | null;
   /** Set for a table tab (the spreadsheet view) instead of a SQL editor. */
   table: { schema: string; name: string } | null;
+  /** Set for an access tool tab: the team access wizard, role removal, or the access check. */
+  tool: Tool | null;
 }
+
+type Tool = "team-access" | "remove-role" | "check-access";
+
+const TOOL_TITLES: Record<Tool, string> = {
+  "team-access": "Team access",
+  "remove-role": "Remove a role",
+  "check-access": "Check access",
+};
 
 /** Waiting for the user: DSQL warnings, then the production confirmation. */
 interface Pending {
@@ -69,6 +82,7 @@ function newTab(sql = "", title?: string, table: Tab["table"] = null): Tab {
     retry: null,
     notice: null,
     table,
+    tool: null,
   };
 }
 
@@ -134,6 +148,18 @@ export default function Workspace({
 
   function openTab(sql: string, title?: string) {
     const t = newTab(sql, title);
+    setTabs((ts) => [...ts, t]);
+    setActive(t.id);
+  }
+
+  /** Access tools open once per schema; opening one again goes back to its tab. */
+  function openTool(tool: Tool) {
+    const existing = tabsRef.current.find((t) => t.tool === tool);
+    if (existing) {
+      setActive(existing.id);
+      return;
+    }
+    const t = { ...newTab("", TOOL_TITLES[tool]), tool };
     setTabs((ts) => [...ts, t]);
     setActive(t.id);
   }
@@ -258,6 +284,8 @@ export default function Workspace({
         onSchema={switchSchema}
         historyOpen={historyOpen}
         onToggleHistory={() => setHistoryOpen((o) => !o)}
+        isAdmin={handle.current_user === "admin"}
+        onTool={openTool}
         onDisconnect={onDisconnect}
       />
       <div className={`workspace-body${historyOpen ? " with-history" : ""}`}>
@@ -289,7 +317,7 @@ export default function Workspace({
         />
         </div>
 
-        <section className={`center${tab.table ? " table-mode" : ""}`}>
+        <section className={`center${tab.table || tab.tool ? " table-mode" : ""}`}>
           <div className="tabs" role="tablist">
             {tabs.map((t) => (
               <div key={t.id} className={`tab${t.id === tab.id ? " active" : ""}`}>
@@ -307,7 +335,22 @@ export default function Workspace({
             </button>
           </div>
 
-          {tab.table ? (
+          {tab.tool ? (
+            !schema ? (
+              <p className="tool">Pick a schema first.</p>
+            ) : tab.tool === "check-access" ? (
+              <CheckAccess key={`${tab.id}-${schema}`} connectionId={handle.id} schema={schema} role={handle.current_user} />
+            ) : (
+              <RoleWizard
+                key={`${tab.id}-${schema}`}
+                mode={tab.tool === "team-access" ? "create" : "remove"}
+                connectionId={handle.id}
+                saved={saved}
+                schema={schema}
+                onSaveConnection={(c) => saveConnection(c).catch(() => {})}
+              />
+            )
+          ) : tab.table ? (
             <TableBrowser
               key={tab.id}
               connectionId={handle.id}

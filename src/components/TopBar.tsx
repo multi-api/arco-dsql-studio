@@ -10,6 +10,8 @@ export default function TopBar({
   onSchema,
   onToggleHistory,
   historyOpen,
+  isAdmin,
+  onTool,
   onDisconnect,
 }: {
   saved: SavedConnection;
@@ -19,6 +21,9 @@ export default function TopBar({
   onSchema: (schema: string) => void;
   onToggleHistory: () => void;
   historyOpen: boolean;
+  /** Creating and removing roles needs admin. */
+  isAdmin: boolean;
+  onTool: (tool: "team-access" | "remove-role" | "check-access") => void;
   onDisconnect: () => void;
 }) {
   return (
@@ -40,6 +45,16 @@ export default function TopBar({
       {saved.production && <span className="badge production">PRODUCTION</span>}
       {saved.read_only && <span className="badge">read-only</span>}
       <span className="spacer" />
+      <select
+        aria-label="Access"
+        value=""
+        onChange={(e) => e.target.value && onTool(e.target.value as "team-access" | "remove-role" | "check-access")}
+      >
+        <option value="">Access…</option>
+        <option value="check-access">Check my access</option>
+        {isAdmin && <option value="team-access">Give the team access</option>}
+        {isAdmin && <option value="remove-role">Remove a role</option>}
+      </select>
       <button type="button" className="ghost" aria-pressed={historyOpen} onClick={onToggleHistory}>
         History
       </button>

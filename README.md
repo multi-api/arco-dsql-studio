@@ -5,9 +5,10 @@ your AWS profile (IAM Identity Center / SSO included), pick your cluster, and yo
 passwords, no pasted tokens.
 
 > **Status: early development.** You can sign in with an AWS profile (or set one up), find your clusters, connect,
-> browse schemas, run SQL with DSQL-aware warnings and history, and browse and edit tables like a spreadsheet. Next:
-> the role wizard. Guides: [connecting](docs/connecting.md), [working with data](docs/working-with-data.md). To build from
-> source: [`docs/development.md`](docs/development.md).
+> browse schemas, run SQL with DSQL-aware warnings and history, browse and edit tables like a spreadsheet, and give
+> your team access with a role wizard. Guides: [connecting](docs/connecting.md),
+> [working with data](docs/working-with-data.md), [team access](docs/team-access.md). To build from source:
+> [`docs/development.md`](docs/development.md).
 
 ## Why
 

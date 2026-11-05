@@ -33,8 +33,9 @@ Instructions for AI agents (and people) building this repository.
 - 2026-11-05: Task 13 done (welcome, AWS setup, cluster picker, connect; `docs/connecting.md`).
 - 2026-11-05: Task 14 done, MVP milestone (workspace: schema tree, SQL editor, results, history;
   `docs/working-with-data.md`).
-- 2026-11-05: Task 15 done (table browser with staged edits, copy and CSV export). Next: Task 16 (role wizard and
-  "Check access" UI).
+- 2026-11-05: Task 15 done (table browser with staged edits, copy and CSV export).
+- 2026-11-05: Task 16 done (role wizard, remove a role, "Check access"; `docs/team-access.md`). Pending review: the
+  owner's manual end-to-end on the scratch cluster, and the console Lambda path (never run). Next: Task 17.
 
 ## Rules
 
