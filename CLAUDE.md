@@ -26,7 +26,8 @@ Instructions for AI agents (and people) building this repository.
 - 2026-11-05: Arco logo merged (`assets/brand/`), app icons regenerated.
 - 2026-11-05: Task 7 done (`split.rs`, `exec.rs`, `store.rs`: run scripts, local history).
 - 2026-11-05: Task 8 done (`classify.rs`, `rules.rs`: statement kinds and DSQL warnings).
-- 2026-11-05: Task 9 done (`explain.rs`: plain-language errors with a fix). Next: Task 10 (grid edits, OCC retry).
+- 2026-11-05: Task 9 done (`explain.rs`: plain-language errors with a fix).
+- 2026-11-05: Task 10 done (`edits.rs`, `occ.rs`: grid change sets, batching under DSQL's limits, OCC retry). Next: Task 11 (role wizard and the Arco console).
 
 ## Rules
 

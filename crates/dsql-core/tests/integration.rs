@@ -380,3 +380,131 @@ async fn it_explains_real_errors() {
     println!("{}: {}", e.title, e.body);
     assert!(e.body.contains("AWS IAM GRANT"));
 }
+
+/// Grid edits against a scratch table in `public`, created and dropped by the test. Also checks that a lost
+/// optimistic-concurrency conflict really surfaces as 40001, which `apply` retries.
+#[tokio::test]
+async fn it_apply_update_roundtrip() {
+    use dsql_core::edits::{self, ChangeSet, MAX_ROWS_PER_TX, RowUpdate, Values};
+    use dsql_core::occ::is_occ;
+    let Some(mut target) = admin_target() else {
+        eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
+        return;
+    };
+    target.schema = Some("public".into());
+    let table = format!("arco_it_edits_{}", std::process::id());
+    let admin = conn::connect(&target).await.expect("connect as admin");
+    if let Err(err) = admin
+        .client
+        .batch_execute(&format!(
+            "CREATE TABLE public.{table} (id bigint PRIMARY KEY, name text, note text)"
+        ))
+        .await
+    {
+        eprintln!("skipped: cannot create a table in public: {err}");
+        return;
+    }
+
+    let vals = |pairs: &[(&str, Option<&str>)]| -> Values {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.map(str::to_string)))
+            .collect()
+    };
+    let pool = Pool::new(target.clone(), 2);
+    let mut cs = ChangeSet {
+        schema: "public".into(),
+        table: table.clone(),
+        pk: vec!["id".into()],
+        column_types: [("id", "bigint"), ("name", "text"), ("note", "text")]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
+        ..ChangeSet::default()
+    };
+    cs.inserts = (1..=3)
+        .map(|i| vals(&[("id", Some(&i.to_string())), ("name", Some("O'Brien"))]))
+        .collect();
+    let run = |cs: &ChangeSet| {
+        let stmts = edits::build_statements(cs).expect("statements");
+        edits::apply(&pool, edits::batches(stmts, MAX_ROWS_PER_TX), 3)
+    };
+    let inserted = run(&cs).await;
+
+    cs.inserts.clear();
+    cs.updates = vec![
+        RowUpdate {
+            pk_values: vals(&[("id", Some("1"))]),
+            set: vals(&[("name", None), ("note", Some(""))]),
+        },
+        RowUpdate {
+            pk_values: vals(&[("id", Some("99"))]),
+            set: vals(&[("name", Some("gone"))]),
+        },
+    ];
+    cs.deletes = vec![vals(&[("id", Some("2"))])];
+    let changed = run(&cs).await;
+
+    let rows: Vec<(i64, Option<String>, Option<String>)> = admin
+        .client
+        .query(
+            &format!("SELECT id, name, note FROM public.{table} ORDER BY id"),
+            &[],
+        )
+        .await
+        .expect("read back")
+        .iter()
+        .map(|r| (r.get(0), r.get(1), r.get(2)))
+        .collect();
+
+    // A lost conflict: A updates a row, B commits a change to it, then A's COMMIT fails.
+    let other = conn::connect(&target).await.expect("second connection");
+    admin.client.batch_execute("BEGIN").await.expect("begin a");
+    admin
+        .client
+        .batch_execute(&format!(
+            "UPDATE public.{table} SET note = 'a' WHERE id = 3"
+        ))
+        .await
+        .expect("update a");
+    other
+        .client
+        .batch_execute(&format!(
+            "UPDATE public.{table} SET note = 'b' WHERE id = 3"
+        ))
+        .await
+        .expect("update b");
+    let conflict = admin.client.batch_execute("COMMIT").await;
+    let _ = admin.client.batch_execute("ROLLBACK").await;
+
+    admin
+        .client
+        .batch_execute(&format!("DROP TABLE public.{table}"))
+        .await
+        .expect("drop the scratch table");
+
+    assert_eq!(inserted.error, None, "{inserted:?}");
+    assert_eq!((inserted.batches_applied, inserted.rows_affected), (1, 3));
+    assert_eq!(changed.error, None, "{changed:?}");
+    assert_eq!((changed.rows_affected, changed.rows_missing), (2, 1));
+    assert_eq!(
+        rows,
+        [
+            (1, None, Some(String::new())),
+            (3, Some("O'Brien".to_string()), None)
+        ]
+    );
+    let err = conn_error(conflict.expect_err("the second writer wins"));
+    println!("conflict: {err:?}");
+    assert!(is_occ(&err), "{err:?}");
+}
+
+fn conn_error(err: tokio_postgres::Error) -> dsql_core::CoreError {
+    let db = err.as_db_error().expect("a server error");
+    dsql_core::CoreError::Db {
+        sqlstate: Some(db.code().code().to_string()),
+        message: db.message().to_string(),
+        detail: None,
+        hint: None,
+    }
+}
