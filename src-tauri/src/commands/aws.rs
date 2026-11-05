@@ -143,6 +143,35 @@ pub fn append_sso_profile(
     Ok(())
 }
 
+/// Saves an approved sign-in for an existing SSO profile to the AWS CLI's cache, like `aws sso login --profile`:
+/// `sso_session` is the profile's `sso_session`, or `None` for a legacy profile keyed by its start URL.
+#[tauri::command]
+pub fn sso_store_login(
+    state: State<'_, AppState>,
+    login_id: String,
+    sso_session: Option<String>,
+) -> Result<(), CoreError> {
+    let login = state
+        .logins
+        .lock()
+        .expect("logins lock")
+        .remove(&login_id)
+        .ok_or_else(|| {
+            CoreError::Config("this sign-in is no longer pending; start again".to_string())
+        })?;
+    let token = login.token.ok_or_else(|| {
+        CoreError::Config("the sign-in has not been approved in the browser yet".to_string())
+    })?;
+    let key = sso::sso_cache_key(sso_session.as_deref(), &token.start_url);
+    sso::write_sso_cache(&AwsPaths::from_env(), &key, &token)
+}
+
+/// `(cluster id, region)` from an endpoint typed by hand, or `None` when it is not a DSQL endpoint.
+#[tauri::command]
+pub fn parse_endpoint(host: String) -> Option<(String, String)> {
+    clusters::parse_endpoint(&host)
+}
+
 #[tauri::command]
 pub async fn caller_identity(
     profile: String,

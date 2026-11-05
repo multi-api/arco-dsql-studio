@@ -49,6 +49,14 @@ export const previewSsoProfile = (newProfile: NewSsoProfile) =>
 export const appendSsoProfile = (newProfile: NewSsoProfile, loginId: string | null) =>
   invoke<void>("append_sso_profile", { newProfile, loginId });
 
+/** Saves an approved sign-in for an existing SSO profile, like `aws sso login --profile`. */
+export const ssoStoreLogin = (loginId: string, ssoSession: string | null) =>
+  invoke<void>("sso_store_login", { loginId, ssoSession });
+
+/** `[clusterId, region]`, or null when `host` is not a DSQL endpoint. */
+export const parseEndpoint = (host: string) =>
+  invoke<[string, string] | null>("parse_endpoint", { host });
+
 export const callerIdentity = (profile: string, region: string | null = null) =>
   invoke<CallerIdentity>("caller_identity", { profile, region });
 
@@ -81,6 +89,9 @@ export const tableIndexes = (id: string, schema: string, table: string) =>
 export const tablePage = (id: string, schema: string, table: string, page: PageRequest) =>
   invoke<TablePage>("table_page", { id, schema, table, page });
 
+export const looksLikeProduction = (schema: string, tags: Record<string, string>) =>
+  invoke<boolean>("looks_like_production", { schema, tags });
+
 export const classifySql = (sql: string) => invoke<Classified>("classify_sql", { sql });
 
 export const runSql = (id: string, sql: string) => invoke<ScriptResult>("run_sql", { id, sql });
@@ -95,6 +106,10 @@ export const applyChanges = (id: string, changeset: ChangeSet) =>
 
 export const explainError = (id: string, err: CoreError) =>
   invoke<Explanation>("explain_error", { id, err });
+
+/** For errors with no open connection: a failed connect (pass the connection) or an AWS error (pass null). */
+export const explainErrorOffline = (saved: SavedConnection | null, err: CoreError) =>
+  invoke<Explanation>("explain_error_offline", { saved, err });
 
 // Store
 

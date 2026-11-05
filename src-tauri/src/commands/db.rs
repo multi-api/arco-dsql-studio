@@ -1,5 +1,6 @@
 //! Connections, the catalog, running SQL, table pages, grid edits and error explanations.
 
+use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -191,6 +192,12 @@ pub async fn table_page(
     }
 }
 
+/// Pre-fills the connection's production flag; the user can change it.
+#[tauri::command]
+pub fn looks_like_production(schema: String, tags: BTreeMap<String, String>) -> bool {
+    catalog::looks_like_production(&schema, &tags)
+}
+
 #[tauri::command]
 pub fn classify_sql(sql: String) -> Classified {
     classify::classify(&sql)
@@ -294,6 +301,33 @@ pub async fn explain_error(
         caller_arn,
         is_admin: conn.saved.role == "admin",
         known_tables,
+    };
+    Ok(explain::explain(&err, &ctx))
+}
+
+/// Explains an error from before a connection exists: a failed `open_connection` (`saved` set, so the text can name
+/// the role and the caller's ARN) or an AWS error on the profile and cluster screens (`saved` unset).
+#[tauri::command]
+pub async fn explain_error_offline(
+    saved: Option<SavedConnection>,
+    err: CoreError,
+) -> Result<Explanation, CoreError> {
+    let (role, caller_arn) = match &saved {
+        Some(saved) => {
+            let arn = match identity::sdk_config(&saved.profile, &saved.region).await {
+                Ok(cfg) => identity::caller_identity(&cfg).await.ok().map(|me| me.arn),
+                Err(_) => None,
+            };
+            (saved.role.clone(), arn)
+        }
+        None => (String::new(), None),
+    };
+    let ctx = ExplainContext {
+        is_admin: role == "admin",
+        role,
+        search_path: saved.and_then(|s| s.schema),
+        caller_arn,
+        known_tables: Vec::new(),
     };
     Ok(explain::explain(&err, &ctx))
 }

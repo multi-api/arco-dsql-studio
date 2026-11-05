@@ -4,8 +4,9 @@ A desktop database client made only for [Amazon Aurora DSQL](https://aws.amazon.
 your AWS profile (IAM Identity Center / SSO included), pick your cluster, and you are looking at your tables. No
 passwords, no pasted tokens.
 
-> **Status: early development.** The app scaffold exists (an empty window); nothing connects to AWS yet. See "For
-> whoever builds this" below and [`docs/development.md`](docs/development.md) to build from source.
+> **Status: early development.** You can sign in with an AWS profile (or set one up), find your clusters and connect;
+> the workspace (tables, SQL editor, results) is next. How connecting works and which IAM permissions it needs:
+> [`docs/connecting.md`](docs/connecting.md). To build from source: [`docs/development.md`](docs/development.md).
 
 ## Why
 
