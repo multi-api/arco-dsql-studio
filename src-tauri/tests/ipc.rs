@@ -11,6 +11,13 @@ use arco_dsql_studio_lib::state::AppState;
 use arco_dsql_studio_lib::with_commands;
 use dsql_core::store::Store;
 
+/// The origin of the app's own pages. Commands are allowed only from it, and it differs by platform.
+const APP_ORIGIN: &str = if cfg!(windows) {
+    "http://tauri.localhost"
+} else {
+    "tauri://localhost"
+};
+
 fn app(dir: &tempfile::TempDir) -> (tauri::App<MockRuntime>, WebviewWindow<MockRuntime>) {
     let store = Store::open(&dir.path().join("store.sqlite")).unwrap();
     let app = with_commands(mock_builder())
@@ -34,7 +41,7 @@ fn call<T: DeserializeOwned>(
             cmd: cmd.into(),
             callback: tauri::ipc::CallbackFn(0),
             error: tauri::ipc::CallbackFn(1),
-            url: "http://tauri.localhost".parse().unwrap(),
+            url: APP_ORIGIN.parse().unwrap(),
             body: tauri::ipc::InvokeBody::Json(args),
             headers: Default::default(),
             invoke_key: INVOKE_KEY.to_string(),
