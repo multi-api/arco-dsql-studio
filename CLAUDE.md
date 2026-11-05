@@ -15,7 +15,9 @@ Instructions for AI agents (and people) building this repository.
 ## Status
 
 - 2026-11-04: spec, plan, README, licence.
-- 2026-11-04: Task 0 done (Tauri 2 scaffold, `dsql-core` with `CoreError`, Vitest; see `docs/development.md`). Next: Task 1 (spike against the real cluster; needs the owner's AWS test values).
+- 2026-11-04: Task 0 done (Tauri 2 scaffold, `dsql-core` with `CoreError`, Vitest; see `docs/development.md`).
+- 2026-11-04: Task 1 done on a scratch cluster the owner approved (not an Arco app); see `docs/spike-findings.md`.
+  Next: Task 2 (AWS profiles).
 
 ## Rules
 

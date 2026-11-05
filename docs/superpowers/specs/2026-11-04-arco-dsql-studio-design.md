@@ -177,8 +177,9 @@ For DSQL's real problem: the app's tables belong to the app's role, and nobody c
 - Steps the app can run itself (connected as `admin`) are run with a preview of the SQL. Steps that only the tables'
   owner can run (`GRANT SELECT ...` per table) are shown as a ready-to-paste snippet for `vendor/bin/arco tinker` or
   Arco Cloud's **Run command**, plus a plain-SQL variant for non-Arco users. For Arco Cloud apps, a "Run it for me"
-  button can invoke the environment's console Lambda with the user's own profile (section 6.5). If the spike in
-  section 8 finds a way for `admin` to grant directly, that path is used instead (subject to the owner's decision).
+  button can invoke the environment's console Lambda with the user's own profile (section 6.5). The spike found that
+  `admin` can grant directly through temporary membership in the app's role (section 12), when `admin` holds ADMIN
+  OPTION on it; that path is offered as one more choice, with the user's explicit consent.
 - A **"Remove role"** flow that revokes in the right order before `DROP ROLE`.
 - A **"Check access"** view: for the current role, which tables it can read/write and which it cannot, with the
   exact grant needed.
@@ -214,7 +215,8 @@ For DSQL's real problem: the app's tables belong to the app's role, and nobody c
   the **simple query protocol** (`simple_query`), which also handles multi-statement scripts and returns every value
   as text — good for a grid; use typed/unnamed statements (`query_typed`) or careful literal quoting for grid edits,
   whichever the spike proves safe.
-- Cancel with `CancelToken` (verify DSQL honours cancel requests; if not, close the connection).
+- Cancel: DSQL ignores cancel requests (spike, `docs/spike-findings.md`), so the app sends one and then closes the
+  connection; the pool opens a new one. The UI says the statement may still finish on the server.
 
 ### 6.4 OCC retries
 - SQLSTATE `40001` on commit or statement → retry the whole transaction up to 3 times with jittered backoff, only for
@@ -277,8 +279,8 @@ Parse with `sqlparser` (PostgreSQL dialect); fall back to keyword rules. Classes
   - advisory locks (`pg_advisory_lock` & co.), `FOR SHARE`.
   - full-text search configs other than `simple`.
   - `CREATE DATABASE`.
-  - `CREATE INDEX` without `ASYNC` on a non-empty table (the builder must check DSQL's current behaviour and word the
-    hint accordingly).
+  - `CREATE INDEX` without `ASYNC`, on any table (the spike found DSQL rejects it even on an empty table:
+    `0A000 unsupported mode. please use CREATE INDEX ASYNC.`) → `CREATE INDEX ASYNC`.
   - more than one DDL statement in a transaction.
 - **Writes data** (INSERT/UPDATE/DELETE/MERGE/COPY) and **changes schema** (DDL, GRANT/REVOKE, role commands) →
   production confirmation; blocked when read-only.
@@ -379,10 +381,11 @@ Decided by the owner (2026-11-04):
 - **Public** repository under the `multi-api` GitHub organisation, **MIT** licence. So nothing account-specific
   (account IDs, cluster IDs, ARNs, profile names) is committed; see section 8.
 
-Author's call, pending the owner's confirmation: if spike item 5 shows that `admin` can take the app role's
-privileges (`GRANT <app_role> TO admin; SET ROLE <app_role>`), the app does it **only when the user accepts it at that
-moment**, with a clear explanation, and revokes the membership on disconnect. It is never done silently and never left
-in place by default.
+Author's call, pending the owner's confirmation: spike item 5 showed that `admin` can take the app role's privileges
+on DSQL. `SET ROLE` is not supported, but `GRANT <app_role> TO admin` alone lets `admin` read the tables and grant on
+them; it needs `admin` to hold ADMIN OPTION on the app role (true when `admin` created it). The app does it **only when
+the user accepts it at that moment**, with a clear explanation, runs `REVOKE <app_role> FROM admin` right after the
+grants (and again on disconnect if something failed in between). It is never done silently and never left in place.
 
 Publishing:
 - Nothing gets created on GitHub, pushed or published without the owner's explicit "si".

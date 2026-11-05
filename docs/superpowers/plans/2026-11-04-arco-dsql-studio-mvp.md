@@ -110,14 +110,16 @@ Confirm the profile and account with the owner first. Values come from env vars;
 
 **Files:** Create `crates/dsql-core/examples/spike.rs`, `docs/spike-findings.md`.
 
-- [ ] **Step 1:** In `spike.rs`, connect with a hand-built token (use `aws_sdk_dsql::auth_token::AuthTokenGenerator`) as `admin` over `tokio-postgres-rustls` with verify-full, run `select current_user, version()`. Record result.
-- [ ] **Step 2:** In one transaction run, in turn: `client.query("select $1::int", &[&1])` (named prepared statement + drop), `client.query_typed(...)`, `client.simple_query(...)`, then `select 1`. Record which (if any) produce `25P02` or a protocol error. **Decision:** `exec` uses `simple_query`; edits use `query_typed` if it is safe, otherwise literal SQL built by `quote.rs`.
-- [ ] **Step 3:** Start `select pg_sleep(30)`, call `CancelToken::cancel_query` after 2 s. Record whether it returns `57014` or the connection must be dropped.
-- [ ] **Step 4:** Time the catalog queries Task 6 needs (copy them from Task 6) against the test schema. Record times and any unsupported view/function.
-- [ ] **Step 5:** As admin: `GRANT "<app_role>" TO admin; SET ROLE "<app_role>"; select count(*) from <a table>; RESET ROLE; REVOKE "<app_role>" FROM admin;`. Record each statement's outcome. Leave nothing in place.
-- [ ] **Step 6:** Connect as a custom role created and removed with the spec 6.5 recipe (owner-side grants via the console Lambda, owner's OK first). Confirm search_path, SELECT, and the permission-denied codes.
-- [ ] **Step 7:** Check the current DSQL quotas (rows per transaction, transaction duration, `CREATE INDEX` without `ASYNC`) in the AWS docs; record them with links.
-- [ ] **Step 8:** Write `docs/spike-findings.md` (no account-specific values), update Task 5/7/10/11 notes in this plan if a decision changed, commit `docs: DSQL spike findings`.
+- [x] **Step 1:** In `spike.rs`, connect with a hand-built token (use `aws_sdk_dsql::auth_token::AuthTokenGenerator`) as `admin` over `tokio-postgres-rustls` with verify-full, run `select current_user, version()`. Record result.
+- [x] **Step 2:** In one transaction run, in turn: `client.query("select $1::int", &[&1])` (named prepared statement + drop), `client.query_typed(...)`, `client.simple_query(...)`, then `select 1`. Record which (if any) produce `25P02` or a protocol error. **Decision:** `exec` uses `simple_query`; edits use `query_typed` if it is safe, otherwise literal SQL built by `quote.rs`.
+- [x] **Step 3:** Start `select pg_sleep(30)`, call `CancelToken::cancel_query` after 2 s. Record whether it returns `57014` or the connection must be dropped.
+- [x] **Step 4:** Time the catalog queries Task 6 needs (copy them from Task 6) against the test schema. Record times and any unsupported view/function.
+- [x] **Step 5:** As admin: `GRANT "<app_role>" TO admin; SET ROLE "<app_role>"; select count(*) from <a table>; RESET ROLE; REVOKE "<app_role>" FROM admin;`. Record each statement's outcome. Leave nothing in place.
+- [x] **Step 6:** Connect as a custom role created and removed with the spec 6.5 recipe (owner-side grants via the console Lambda, owner's OK first). Confirm search_path, SELECT, and the permission-denied codes.
+- [x] **Step 7:** Check the current DSQL quotas (rows per transaction, transaction duration, `CREATE INDEX` without `ASYNC`) in the AWS docs; record them with links.
+- [x] **Step 8:** Write `docs/spike-findings.md` (no account-specific values), update Task 5/7/10/11 notes in this plan if a decision changed, commit `docs: DSQL spike findings`.
+
+Done 2026-11-04, see `docs/spike-findings.md`. The owner chose a scratch cluster instead of the Arco test app (a real app), so `spike.rs setup` builds a stand-in owner role and schema, and Step 6's owner-side grant ran as that role instead of through the console Lambda. Decisions that changed: cancel drops the connection (DSQL ignores cancel requests); primary keys come from the first `indnkeyatts` entries of `pg_index.indkey`; `CREATE INDEX` without `ASYNC` is always rejected; `SET ROLE` is unsupported, but the admin takeover works through role membership alone.
 
 ### Task 2: AWS profiles
 
@@ -161,7 +163,7 @@ Confirm the profile and account with the owner first. Values come from env vars;
   - `pub async fn caller_identity(cfg: &SdkConfig) -> Result<CallerIdentity, CoreError>` → `{ account, arn, user_id }`.
   - `pub fn classify_sdk_error(msg: &str) -> AwsErrorKind`.
   - `pub fn assumed_role_name(sts_arn: &str) -> Option<String>`.
-  - `pub fn sso_role_arn_guess(account: &str, role_name: &str, sso_region: &str) -> String` (`arn:aws:iam::<a>:role/aws-reserved/sso.amazonaws.com/<region>/<role>`; for `us-east-1` the CLI omits the region segment — verify on the test role from Task 1 and pin with a test).
+  - `pub fn sso_role_arn_guess(account: &str, role_name: &str, sso_region: &str) -> String` (`arn:aws:iam::<a>:role/aws-reserved/sso.amazonaws.com/<region>/<role>`; for SSO region `us-east-1` there is no region segment, confirmed in Task 1 with `iam:GetRole`; pin with a test).
   - `pub async fn iam_role_arn(cfg: &SdkConfig, role_name: &str) -> Result<String, CoreError>` (IAM `GetRole`).
 
 - [ ] **Step 1: Failing tests:** `sso_cache_key_session` (`sso_cache_key(Some("my-sso"), "https://x.awsapps.com/start")` == SHA-1 hex of `my-sso`), `sso_cache_key_legacy`, `sso_cache_roundtrip_matches_cli_keys` (serialise → keys equal the fixture's), `classify_sdk_error_expired_sso` (messages containing "The SSO session associated with this profile has expired" or "Token has expired" → `SsoExpired`), `classify_access_denied`, `assumed_role_name_parses_sso_arn` (`arn:aws:sts::123:assumed-role/AWSReservedSSO_Admin_abc/me@x` → `AWSReservedSSO_Admin_abc`), `sso_role_arn_guess_*`.
@@ -200,7 +202,7 @@ Confirm the profile and account with the owner first. Values come from env vars;
   - `pub async fn connect(target: &Target) -> Result<Session, CoreError>` (TLS verify-full with `webpki-roots`, `dbname=postgres`, then `SET search_path = <quoted schema>` when set).
   - `pub struct Pool` with `Pool::new(target: Target, max: usize)`, `async fn get(&self) -> Result<PooledSession, CoreError>`, recycling sessions older than `RECYCLE_AFTER = 55 min`, and discarding sessions whose last error was a closed connection.
   - `pub fn is_too_old(opened: Instant, now: Instant) -> bool`.
-  - `Session::cancel(&self)` (strategy from Task 1, Step 3).
+  - `Session::cancel(&self)`: DSQL ignores cancel requests (Task 1, Step 3), so send `cancel_query`, then drop the connection; the pool replaces it. The UI says the statement may still finish on the server.
 - [ ] **Step 1: Failing tests:** `pool_recycles_old_connections` (`is_too_old` true at 55 min, false at 54), `search_path_statement_quotes` (`set_search_path_sql("My Schema")` == `SET search_path = "My Schema"`), `db_role_user`.
 - [ ] **Step 2–4:** FAIL → implement → PASS.
 - [ ] **Step 5:** Gated `it_connect_admin_sets_search_path` (`select current_schema()` == `DSQL_TEST_SCHEMA`).
@@ -215,8 +217,8 @@ Confirm the profile and account with the owner first. Values come from env vars;
 - Produces:
   - `pub struct SchemaInfo { name, owner }`, `TableInfo { schema, name, kind: TableKind /*Table,View,Sequence*/, owner, can_select, can_insert, can_update, can_delete }`, `ColumnInfo { name, data_type, nullable, default, is_pk, ordinal }`, `IndexInfo { name, columns, unique }`.
   - `pub async fn schemas(s: &Session) -> Result<Vec<SchemaInfo>, CoreError>` (excludes `pg_catalog`, `information_schema`, `sys`, `pg_toast`, `pg_temp_*`, and `public` when empty).
-  - `pub async fn tables(s, schema) -> Result<Vec<TableInfo>>` (`pg_class`/`pg_namespace` + `has_table_privilege`).
-  - `pub async fn columns(s, schema, table)`, `pub async fn indexes(s, schema, table)`, `pub async fn primary_key(s, schema, table) -> Result<Vec<String>>`.
+  - `pub async fn tables(s, schema) -> Result<Vec<TableInfo>>` (`pg_class`/`pg_namespace` + `has_table_privilege`; not `information_schema.table_privileges`, which returns nothing for `admin`).
+  - `pub async fn columns(s, schema, table)`, `pub async fn indexes(s, schema, table)`, `pub async fn primary_key(s, schema, table) -> Result<Vec<String>>` (only the first `indnkeyatts` entries of `pg_index.indkey`: DSQL primary-key indexes cover every column, Task 1 Step 4; test `primary_key_uses_key_columns_only` on the SQL).
   - `pub fn pick_default_schema(schemas: &[SchemaInfo], role: &DbRole, current_user: &str) -> Option<String>` — rules in order: the role's own default search_path schema if it exists; the only non-public schema; a schema equal to `current_user`; else the schema matching `^[a-z0-9_]+_(production|staging|[a-z0-9]+)$` with the most tables is **not** guessed — return `None` and let the UI ask.
   - `pub fn looks_like_production(schema: &str, tags: &BTreeMap<String,String>) -> bool` (suffix `_production`/`_prod`, or a tag value `production`).
 - [ ] **Step 1: Failing tests:** `pick_default_single_schema`, `pick_default_schema_named_like_user`, `pick_default_none_when_ambiguous`, `looks_like_production_suffix`, `looks_like_production_tag`.
@@ -253,7 +255,7 @@ Confirm the profile and account with the owner first. Values come from env vars;
   - `pub struct Classified { statements: Vec<ClassifiedStatement> }`, `ClassifiedStatement { sql: String, kind: StatementKind, findings: Vec<Finding> }`.
   - `pub fn classify(sql: &str) -> Classified` (sqlparser PostgreSQL dialect; on parse failure, keyword fallback per statement split on `;` outside quotes).
   - `pub fn needs_confirmation(c: &Classified, production: bool) -> bool` and `pub fn blocked_by_read_only(c: &Classified) -> bool`.
-  - Rule ids (one test each, named `rule_<id>`): `truncate`, `add_constraint`, `add_column_default_or_not_null`, `alter_column_type`, `set_not_null`, `savepoint`, `temp_table`, `trigger`, `plpgsql`, `extension`, `advisory_lock`, `for_share`, `fts_config`, `create_database`, `index_without_async` (wording from Task 1 Step 7), `multiple_ddl_in_transaction`. Messages and alternatives from spec 6.6.
+  - Rule ids (one test each, named `rule_<id>`): `truncate`, `add_constraint`, `add_column_default_or_not_null`, `alter_column_type`, `set_not_null`, `savepoint`, `temp_table`, `trigger`, `plpgsql`, `extension`, `advisory_lock`, `for_share`, `fts_config`, `create_database`, `index_without_async` (every `CREATE INDEX` without `ASYNC`, empty table or not: DSQL answers `0A000 unsupported mode. please use CREATE INDEX ASYNC.`), `multiple_ddl_in_transaction`. Messages and alternatives from spec 6.6.
 - [ ] **Step 1: Failing tests:** one per rule id above, plus `select_is_read`, `insert_is_write`, `grant_is_schema`, `comment_and_string_with_semicolon_not_split` (`select ';' -- ;` is one statement), `production_write_needs_confirmation`, `read_only_blocks_delete`.
 - [ ] **Step 2–4:** FAIL → implement → PASS. Commit `feat(core): classify statements DSQL rejects`.
 
@@ -280,10 +282,10 @@ Confirm the profile and account with the owner first. Values come from env vars;
   - `pub fn ident(s: &str) -> String` (always double-quoted, `"` doubled), `pub fn literal(v: Option<&str>) -> String` (`NULL` or `'…'` with `'` doubled; reject NUL bytes with `CoreError::Config`).
   - `pub struct ChangeSet { schema, table, pk: Vec<String>, updates: Vec<RowUpdate>, inserts: Vec<BTreeMap<String, Option<String>>>, deletes: Vec<BTreeMap<String, Option<String>> /*pk values*/> }`, `RowUpdate { pk_values: BTreeMap<String, Option<String>>, set: BTreeMap<String, Option<String>> }`.
   - `pub fn build_statements(cs: &ChangeSet) -> Result<Vec<String>, CoreError>` (error when `pk` is empty; values sent as text literals with an explicit cast to the column type `'…'::<type>` — column types passed in `ChangeSet.column_types: BTreeMap<String,String>`).
-  - `pub const MAX_ROWS_PER_TX: usize` (from Task 1 Step 7; 3,000 if unchanged) and `pub fn batches(stmts: Vec<String>, max: usize) -> Vec<Vec<String>>`.
+  - `pub const MAX_ROWS_PER_TX: usize = 3000` (Task 1 Step 7; DSQL also caps a write transaction at 10 MiB and 5 minutes) and `pub fn batches(stmts: Vec<String>, max: usize) -> Vec<Vec<String>>`.
   - `pub async fn apply(pool: &Pool, batches: Vec<Vec<String>>, max_retries: u32 /*3*/) -> Result<ApplyReport, CoreError>` (each batch: BEGIN … COMMIT, retry the whole batch on 40001 with jittered backoff 50–400 ms; `ApplyReport { batches_applied, rows_affected, retries }`).
   - `pub fn is_occ(err: &CoreError) -> bool`.
-  - (If Task 1 showed `query_typed` is safe, the builder may switch `build_statements` to parameters; the tests stay the same at the API level.)
+  - (Task 1 showed `query_typed` is safe on DSQL, so the builder may switch `build_statements` to parameters; the tests stay the same at the API level.)
 - [ ] **Step 1: Failing tests:** `edits_quote_hostile_identifiers` (column `we"ird`, table `Order` → `"we""ird"`, `"Order"`), `edits_null_vs_empty` (`None` → `NULL`, `Some("")` → `''`, `Some("NULL")` → `'NULL'`), `edits_literal_doubles_quotes`, `edits_require_pk`, `edits_update_targets_pk` (`UPDATE "s"."t" SET "name" = 'x'::text WHERE "id" = '1'::bigint`), `edits_batch_under_row_limit` (5,000 updates → 2 batches with `MAX_ROWS_PER_TX = 3000`), `occ_detects_40001`.
 - [ ] **Step 2–4:** FAIL → implement → PASS. Gated `it_apply_update_roundtrip` on a scratch table the test creates and drops (needs a role that can create tables — admin in `public` or a test schema; skip if not permitted).
 - [ ] **Step 5:** Commit `feat(core): grid change sets, batching and OCC retry`.
@@ -299,7 +301,7 @@ Confirm the profile and account with the owner first. Values come from env vars;
   - `pub struct RolePlan { admin_sql: Vec<String>, owner_sql: Vec<String>, owner_tinker: String }`.
   - `pub fn create_plan(role: &str, iam_role_arn: &str, schema: &str, tables: &[String], access: Access) -> RolePlan` — admin: `CREATE ROLE "r" WITH LOGIN`, `AWS IAM GRANT "r" TO '<arn>'`, `GRANT USAGE ON SCHEMA "s" TO "r"`, `ALTER ROLE "r" SET search_path = "s"`; owner: `GRANT SELECT[, INSERT, UPDATE, DELETE] ON "s"."t" TO "r"` per table; `owner_tinker` = the PHP one-liner from spec 6.5 adapted to the privileges.
   - `pub fn remove_plan(role, iam_role_arn, schema, tables) -> RolePlan` — owner REVOKEs first, then admin `AWS IAM REVOKE`, `REVOKE USAGE`, `DROP ROLE` (order pinned by test).
-  - `pub fn grant_owner_privileges_via_admin_plan(app_role: &str, sql: &[String]) -> Vec<String>` — only used if Task 1 Step 5 succeeded and the user accepted: `GRANT "<app_role>" TO admin`, `SET ROLE "<app_role>"`, …sql…, `RESET ROLE`, `REVOKE "<app_role>" FROM admin`. Delete this function if Step 5 failed.
+  - `pub fn grant_owner_privileges_via_admin_plan(app_role: &str, sql: &[String]) -> Vec<String>` — only used when the user accepts: `GRANT "<app_role>" TO admin`, …sql…, `REVOKE "<app_role>" FROM admin`. Task 1 Step 5: `SET ROLE` is unsupported on DSQL, but membership alone inherits the owner's privileges, including `GRANT`. It needs `admin` to hold ADMIN OPTION on the app role (true when `admin` created it); add `pub async fn admin_can_take_over(s, app_role) -> Result<bool>` (`pg_auth_members.admin_option`) and offer the path only when it is true. Test `admin_takeover_plan_has_no_set_role`.
   - `pub async fn existing_mappings(s: &Session) -> Result<Vec<(String, String)>>` (`sys.iam_pg_role_mappings`).
   - `pub fn console_function_name(schema: &str) -> String` (`myapp_staging` → `myapp-staging-console`: `_` → `-`, suffix `-console`; the UI lets the user correct it).
   - `pub async fn run_tinker(cfg: &SdkConfig, function: &str, php: &str) -> Result<String, CoreError>` (Lambda Invoke, qualifier `live`, payload `{"command":"tinker --execute=\"<escaped php>\""}`; return the output; map FunctionError to `CoreError::Aws{Other}` with the output).
@@ -360,7 +362,7 @@ Confirm the profile and account with the owner first. Values come from env vars;
 
 **Files:** Create `src/components/RoleWizard.tsx`, `src/components/CheckAccess.tsx`.
 
-- Behaviour (spec 5.7): steps — access (read-only / read-write) → IAM role (default from caller identity via `iam_role_arn`, fallback `sso_role_arn_guess`, editable) → role name → review of admin SQL and owner SQL → run admin SQL → owner step with three choices: "Run it for me" (console Lambda, function name editable, shows tinker code and output), "Copy tinker snippet", "Copy SQL" — plus "Let admin do it (temporary)" only if Task 1 Step 5 succeeded, with an explanation and explicit consent, revoking right after → test connection as the new role → offer to save it as a connection. "Remove role" flow in the right order. "Check access" table: each table × SELECT/INSERT/UPDATE/DELETE for the current role, with the exact grant for missing ones.
+- Behaviour (spec 5.7): steps — access (read-only / read-write) → IAM role (default from caller identity via `iam_role_arn`, fallback `sso_role_arn_guess`, editable) → role name → review of admin SQL and owner SQL → run admin SQL → owner step with three choices: "Run it for me" (console Lambda, function name editable, shows tinker code and output), "Copy tinker snippet", "Copy SQL" — plus "Let admin do it (temporary)" only when `admin_can_take_over` is true (Task 1 Step 5: works through role membership, no `SET ROLE`), with an explanation and explicit consent, revoking right after → test connection as the new role → offer to save it as a connection. "Remove role" flow in the right order. "Check access" table: each table × SELECT/INSERT/UPDATE/DELETE for the current role, with the exact grant for missing ones.
 - [ ] **Step 1:** Failing tests: `wizard_shows_sql_before_running`, `remove_flow_orders_revokes_first`, `admin_takeover_hidden_unless_supported`, `check_access_lists_missing_grants`.
 - [ ] **Step 2–4:** FAIL → implement → PASS.
 - [ ] **Step 5:** Manual end-to-end on the test cluster with the owner's OK: create readonly role, run owner grants via console, connect as it, remove it, confirm the cluster is clean.

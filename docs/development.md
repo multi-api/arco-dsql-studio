@@ -50,3 +50,16 @@ Integration tests run against a real Aurora DSQL cluster and are skipped when th
 
 This repository is public: never commit real values (account IDs, cluster IDs, ARNs, profile names, SSO start URLs).
 Keep them in your shell or in a `.env` file, which is git-ignored.
+
+## The DSQL spike
+
+`crates/dsql-core/examples/spike.rs` reproduces the checks in [`spike-findings.md`](spike-findings.md). Run it only
+against a scratch cluster, never an app's cluster: it creates and drops roles, an IAM mapping, a schema and tables.
+
+```sh
+export DSQL_HOST=... DSQL_REGION=... AWS_PROFILE=...
+export SPIKE_IAM_ROLE_ARN=...   # the IAM role behind AWS_PROFILE (with its path), for the spike roles' mappings
+cargo run -p dsql-core --example spike -- setup     # owner role, schema spike_app, tables with sample rows
+cargo run -p dsql-core --example spike -- run       # every check; prints each statement's outcome
+cargo run -p dsql-core --example spike -- teardown  # removes everything setup and run created
+```
