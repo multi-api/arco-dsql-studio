@@ -35,7 +35,16 @@ Instructions for AI agents (and people) building this repository.
   `docs/working-with-data.md`).
 - 2026-11-05: Task 15 done (table browser with staged edits, copy and CSV export).
 - 2026-11-05: Task 16 done (role wizard, remove a role, "Check access"; `docs/team-access.md`). Pending review: the
-  owner's manual end-to-end on the scratch cluster, and the console Lambda path (never run). Next: Task 17.
+  owner's manual end-to-end on the scratch cluster, and the console Lambda path (never run).
+- 2026-11-05: Task 17 done on Windows (README, release-build docs, macOS bundle settings, full test run).
+  **Hand-over — pending:**
+  - Build and try the `.dmg` on a Mac (Task 17 Step 1; record its size).
+  - The owner's manual check of the role wizard (Task 16 Step 5) and a first run of the console Lambda path
+    (**Run it for me**, `it_console_tinker`) on a real Arco app, with the owner's OK.
+  - Code signing and notarisation (needs the owner's Apple Developer ID); Windows and Linux packages; a deep link from
+    Arco Cloud.
+  - Publishing: create `multi-api/arco-dsql-studio` on GitHub and push, only after the owner's explicit "si".
+  - The scratch cluster (schema `spike_app`, roles `spike_owner` and `spike_readonly`) is the owner's to delete.
 
 ## Rules
 

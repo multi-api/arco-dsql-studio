@@ -404,7 +404,16 @@ Done 2026-11-05 except Step 5. The tools open as tabs from the top bar's **Acces
 **Files:** Modify `README.md`, `docs/development.md`, `src-tauri/tauri.conf.json` (bundle: `dmg`, `app`; minimum macOS 11; icons).
 
 - [ ] **Step 1:** `npm run tauri build -- --target aarch64-apple-darwin` → `.app` and `.dmg` under `src-tauri/target/.../bundle/`. Record size. Unsigned is acceptable; document the Gatekeeper "Open anyway" step and that signing/notarisation needs the owner's Apple Developer ID (later).
-- [ ] **Step 2:** README: what it is and why (the three walls), screenshots placeholder, install (from the `.dmg`, from source), first connection walkthrough, IAM permissions table (`dsql:DbConnectAdmin`, `dsql:DbConnect`, `dsql:ListClusters`, `dsql:GetCluster`, `dsql:ListTagsForResource`, `iam:GetRole` optional, `lambda:InvokeFunction` optional), what is stored locally and what is not, DSQL limitations with links to the Laravel driver, troubleshooting, licence MIT. Links to `docs/*.md`.
-- [ ] **Step 3:** Full test run: `cargo test --workspace`, `npm test`, gated integration suite with the owner's confirmed profile. All PASS (report any skipped test and why).
-- [ ] **Step 4:** Update the "Status" section of `CLAUDE.md` as the hand-over note (what is done, what is pending: signing, Windows/Linux, deep link from Arco Cloud) and commit `docs: README and macOS build`.
+- [x] **Step 2:** README: what it is and why (the three walls), screenshots placeholder, install (from the `.dmg`, from source), first connection walkthrough, IAM permissions table (`dsql:DbConnectAdmin`, `dsql:DbConnect`, `dsql:ListClusters`, `dsql:GetCluster`, `dsql:ListTagsForResource`, `iam:GetRole` optional, `lambda:InvokeFunction` optional), what is stored locally and what is not, DSQL limitations with links to the Laravel driver, troubleshooting, licence MIT. Links to `docs/*.md`.
+- [x] **Step 3:** Full test run: `cargo test --workspace`, `npm test`, gated integration suite with the owner's confirmed profile. All PASS (report any skipped test and why).
+- [x] **Step 4:** Update the "Status" section of `CLAUDE.md` as the hand-over note (what is done, what is pending: signing, Windows/Linux, deep link from Arco Cloud) and commit `docs: README and macOS build`.
 - [ ] **Step 5:** Ask the owner (in Spanish) for an explicit "si" before creating `multi-api/arco-dsql-studio` on GitHub (public) and pushing. Do not push before.
+
+Done 2026-11-05 except Step 1 and Step 5. This machine is Windows, so the macOS build (Step 1) is pending on a Mac:
+`tauri.conf.json` now sets `bundle.macOS.minimumSystemVersion` 11.0 (targets stay `all`, so each platform bundles its
+own), and `npm run tauri build -- --no-bundle` on Windows built a 15 MB release binary; unsigned builds and Gatekeeper's
+"Open Anyway" are documented in the README and `docs/development.md`. Step 3: `cargo test --workspace` (124 core unit
+tests, 5 app unit tests, 2 IPC tests), 33 UI tests, and the integration suite on the scratch cluster: 11 pass,
+`it_console_tinker` skips itself (no `DSQL_CONSOLE_FUNCTION`). The first full run failed twice with `OC001`: live tests
+ran in parallel and schema changes broke catalog reads, so they now run one at a time behind a lock, and the edits test
+drops scratch tables left by an interrupted run.

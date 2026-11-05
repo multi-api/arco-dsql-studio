@@ -41,6 +41,20 @@ npm run build               # type-check and build the UI into dist/
 npm run tauri build         # release bundle (.app/.dmg on macOS)
 ```
 
+## Release builds
+
+`npm run tauri build` builds the release app and its bundles under `target/release/bundle/` (`bundle.targets` is
+`all`, so each platform makes its own: `.app` and `.dmg` on macOS, `.msi` and NSIS `.exe` on Windows). On an Apple
+silicon Mac, `npm run tauri build -- --target aarch64-apple-darwin` makes the arm64 build (the output then goes under
+`target/aarch64-apple-darwin/release/bundle/`); macOS 11 is the minimum (`bundle.macOS.minimumSystemVersion`).
+
+The builds are unsigned. On macOS, users open them once through **System Settings → Privacy & Security → Open Anyway**;
+signing and notarisation need the owner's Apple Developer ID and are not set up yet. Windows SmartScreen may warn the
+same way.
+
+`npm run tauri build -- --no-bundle` compiles the release binary only (`target/release/arco-dsql-studio`), without
+the installer tools, which Tauri downloads the first time it bundles.
+
 ## Integration tests
 
 Integration tests run against a real Aurora DSQL cluster and are skipped when these environment variables are unset:
@@ -57,6 +71,10 @@ On a scratch cluster, `cargo run -p dsql-core --example spike -- setup` (see bel
 `spike_app`: tables owned by a role `spike_owner`, which `admin` cannot read, as in an Arco app. Use
 `DSQL_TEST_SCHEMA=spike_app`. `it_role_lifecycle` runs the owner grants there through `admin`'s temporary membership in
 `spike_owner` (no console Lambda needed) and removes the role it creates.
+
+The live tests take a shared lock and run one at a time: a test that changes the schema makes another test's catalog
+read fail with `OC001` ("schema has been updated by another transaction"). `it_apply_update_roundtrip` drops any
+`public.arco_it_edits_*` table an interrupted run left behind.
 
 This repository is public: never commit real values (account IDs, cluster IDs, ARNs, profile names, SSO start URLs).
 Keep them in your shell or in a `.env` file, which is git-ignored.
