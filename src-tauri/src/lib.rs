@@ -13,6 +13,9 @@ const STORE_FILE: &str = "arco-dsql-studio.sqlite";
 pub fn run() {
     with_commands(tauri::Builder::default())
         .plugin(tauri_plugin_opener::init())
+        // CSV export: a save dialog, then writing the file the user picked (the dialog adds it to the fs scope).
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;

@@ -16,6 +16,7 @@ import HistoryPanel from "../components/HistoryPanel";
 import ResultsGrid from "../components/ResultsGrid";
 import SchemaTree from "../components/SchemaTree";
 import SqlEditor, { type Selection } from "../components/SqlEditor";
+import TableBrowser from "../components/TableBrowser";
 import TopBar from "../components/TopBar";
 import { errorText } from "../errors";
 import type {
@@ -41,6 +42,8 @@ interface Tab {
   retry: string | null;
   /** Shown instead of running: read-only refusal. */
   notice: string | null;
+  /** Set for a table tab (the spreadsheet view) instead of a SQL editor. */
+  table: { schema: string; name: string } | null;
 }
 
 /** Waiting for the user: DSQL warnings, then the production confirmation. */
@@ -53,7 +56,7 @@ interface Pending {
 
 let nextTabId = 1;
 
-function newTab(sql = "", title?: string): Tab {
+function newTab(sql = "", title?: string, table: Tab["table"] = null): Tab {
   const id = nextTabId++;
   return {
     id,
@@ -65,8 +68,11 @@ function newTab(sql = "", title?: string): Tab {
     problem: null,
     retry: null,
     notice: null,
+    table,
   };
 }
+
+const changesSchema = (check: SqlCheck) => check.classified.statements.some((s) => s.kind === "Schema");
 
 const q = (name: string) => `"${name.replace(/"/g, '""')}"`;
 
@@ -132,6 +138,18 @@ export default function Workspace({
     setActive(t.id);
   }
 
+  /** A table opens once; opening it again goes back to its tab. */
+  function openTableTab(schemaName: string, name: string) {
+    const existing = tabsRef.current.find((t) => t.table?.schema === schemaName && t.table.name === name);
+    if (existing) {
+      setActive(existing.id);
+      return;
+    }
+    const t = newTab("", name, { schema: schemaName, name });
+    setTabs((ts) => [...ts, t]);
+    setActive(t.id);
+  }
+
   function closeTab(id: number) {
     setTabs((ts) => {
       const rest = ts.filter((t) => t.id !== id);
@@ -174,7 +192,7 @@ export default function Workspace({
     const findings = check.classified.statements.flatMap((s) => s.findings);
     if (findings.length) setPending({ tabId: t.id, sql, check, stage: "warn" });
     else if (check.needs_confirmation) setPending({ tabId: t.id, sql, check, stage: "confirm" });
-    else execute(t.id, sql);
+    else execute(t.id, sql, changesSchema(check));
   }
 
   function proceed() {
@@ -184,10 +202,10 @@ export default function Workspace({
       return;
     }
     setPending(null);
-    execute(pending.tabId, pending.sql);
+    execute(pending.tabId, pending.sql, changesSchema(pending.check));
   }
 
-  async function execute(tabId: number, sql: string) {
+  async function execute(tabId: number, sql: string, schemaChanged = false) {
     update(tabId, { running: true, problem: null, notice: null, retry: null });
     let result: ScriptResult;
     try {
@@ -197,6 +215,13 @@ export default function Workspace({
       return;
     }
     setHistoryVersion((v) => v + 1);
+    if (schemaChanged) {
+      // New or dropped tables and schemas show up in the tree and the schema picker.
+      listSchemas(handle.id)
+        .then(setSchemas)
+        .catch(() => {});
+      setTreeVersion((v) => v + 1);
+    }
     const failed = result.outcomes.find((o) => "Error" in o);
     const err = failed && "Error" in failed ? failed.Error : null;
     const occ = !!err && typeof err === "object" && "Db" in err && err.Db.sqlstate === "40001";
@@ -236,15 +261,35 @@ export default function Workspace({
         onDisconnect={onDisconnect}
       />
       <div className={`workspace-body${historyOpen ? " with-history" : ""}`}>
+        <div className="side">
+          <div className="side-head">
+            <h3>Schemas</h3>
+            <button
+              type="button"
+              className="link subtle"
+              aria-label="Reload schemas and tables"
+              title="Reload schemas and tables"
+              onClick={() => {
+                listSchemas(handle.id)
+                  .then(setSchemas)
+                  .catch(() => {});
+                setTreeVersion((v) => v + 1);
+              }}
+            >
+              ↻
+            </button>
+          </div>
         <SchemaTree
           key={treeVersion}
           connectionId={handle.id}
           schemas={schemas}
           current={schema}
-          onOpenTable={(s, t) => openTab(`SELECT * FROM ${q(s)}.${q(t)} LIMIT 100;`, t)}
+          onOpenTable={openTableTab}
+          onQueryTable={(s, t) => openTab(`SELECT * FROM ${q(s)}.${q(t)} LIMIT 100;`, t)}
         />
+        </div>
 
-        <section className="center">
+        <section className={`center${tab.table ? " table-mode" : ""}`}>
           <div className="tabs" role="tablist">
             {tabs.map((t) => (
               <div key={t.id} className={`tab${t.id === tab.id ? " active" : ""}`}>
@@ -262,6 +307,18 @@ export default function Workspace({
             </button>
           </div>
 
+          {tab.table ? (
+            <TableBrowser
+              key={tab.id}
+              connectionId={handle.id}
+              schema={tab.table.schema}
+              table={tab.table.name}
+              production={saved.production}
+              readOnly={saved.read_only}
+              onOpenSql={(sql) => openTab(sql)}
+            />
+          ) : (
+            <>
           <div className="toolbar">
             <button type="button" onClick={() => run(false)} disabled={tab.running} title="⌘↵ / Ctrl+↵">
               Run
@@ -312,6 +369,8 @@ export default function Workspace({
               <ResultsGrid result={rowSets[rowSets.length - 1]} durationMs={tab.result?.duration_ms ?? 0} />
             )}
           </div>
+            </>
+          )}
         </section>
 
         {historyOpen && <HistoryPanel refresh={historyVersion} onOpen={(sql) => openTab(sql)} />}

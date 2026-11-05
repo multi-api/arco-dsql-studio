@@ -28,11 +28,15 @@ export default function SchemaTree({
   schemas,
   current,
   onOpenTable,
+  onQueryTable,
 }: {
   connectionId: string;
   schemas: SchemaInfo[];
   current: string | null;
+  /** Opens the table in the spreadsheet view. */
   onOpenTable: (schema: string, table: string) => void;
+  /** Opens a SQL tab with a SELECT on the table. */
+  onQueryTable: (schema: string, table: string) => void;
 }) {
   const [open, setOpen] = useState<Set<string>>(() => new Set(current ? [current] : []));
   const [tables, setTables] = useState<Record<string, TableInfo[] | string>>({});
@@ -125,7 +129,11 @@ export default function SchemaTree({
                                 ))}
                               <li>
                                 <button type="button" className="link" onClick={() => onOpenTable(s.name, t.name)}>
-                                  Query this table
+                                  Open
+                                </button>
+                                {" · "}
+                                <button type="button" className="link" onClick={() => onQueryTable(s.name, t.name)}>
+                                  Query in SQL
                                 </button>
                               </li>
                             </ul>

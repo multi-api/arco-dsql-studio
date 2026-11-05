@@ -1,6 +1,7 @@
 # Working with data
 
-What you see after connecting: the schema tree, SQL tabs, results and history.
+What you see after connecting: the schema tree, SQL tabs, results, history, and tables you can browse and edit like
+a spreadsheet.
 
 ## The top bar
 
@@ -21,7 +22,10 @@ open them.
 
 - 🔒 marks a table your role cannot read. Hover a table to see its owner and what your role can do with it (`SELECT`,
   `INSERT`, `UPDATE`, `DELETE`).
-- Double-click a table, or **Query this table**, to open a tab with `SELECT * FROM "schema"."table" LIMIT 100;`.
+- Double-click a table, or **Open**, to browse it in a table tab (below). **Query in SQL** opens a SQL tab with
+  `SELECT * FROM "schema"."table" LIMIT 100;`.
+- **↻** reloads the schemas and tables. The tree also reloads after you run a statement that changes the schema.
+- An empty `public` schema is hidden; it appears once it has a table.
 
 ## SQL tabs
 
@@ -60,9 +64,52 @@ The grid shows the last result of the run with its row count and duration; messa
 above it. `NULL` is a dimmed badge; an empty string is an empty cell; the text `NULL` is plain text. Up to 10,000 rows
 are kept; if a query returns more, the grid says so (add `LIMIT` or a `WHERE`).
 
+Drag the right edge of a column header to change its width; double-click the edge to fit the column to its content.
+Hover a cell to see a value that does not fit.
+
 Errors are explained in plain language with the fix when there is one: switch to the schema that has the table, the
 `GRANT` the table's owner must run (with **Copy**), sign in again, or **Try again** after a concurrency conflict
 (`40001`). The app never re-runs your SQL by itself.
+
+## Browsing a table
+
+A table tab shows the table 200 rows at a time (**Previous** / **Next**).
+
+- Click a column header to sort by it (ascending, descending, then unsorted).
+- **Filter** adds a filter per column (`=`, `≠`, `<`, `>`, contains, is null, is not null) and a free **WHERE**
+  condition; **Apply filters** runs them. The WHERE condition may only read: anything that would change data is
+  refused (use a SQL tab for that).
+- **Show SQL** shows the exact query behind the page; **Open in editor** copies it into a SQL tab.
+- **Copy page as…** (or **Copy selected as…** when rows are ticked) copies rows as CSV, TSV (for spreadsheets),
+  JSON, or `INSERT` statements. In CSV, NULL and an empty string are both empty; TSV writes NULL as `\N`; JSON and
+  `INSERT` keep them apart.
+- **Export CSV** saves the page's rows to a file you pick.
+
+## Editing rows
+
+Edits find rows by **primary key**. A table without one is read-only here (a change could hit the wrong rows), and so
+is every table on a read-only connection.
+
+- **Double-click a cell** to edit it; **Enter** keeps the change, **Esc** cancels. The **NULL** button sets the cell
+  to SQL `NULL`, which is different from an empty string.
+- **Add row** adds a row at the bottom; columns you do not fill get their default. **×** removes an added row.
+- Tick rows and **Delete N rows** to mark them for deletion.
+
+Nothing is sent yet: changed cells are yellow, added rows green, deleted rows struck through. **Discard** drops all
+changes; moving to another page or reloading asks first.
+
+**Save N changes** shows the exact `UPDATE`, `INSERT` and `DELETE` statements (one row each) before anything runs:
+
+- Outside production, **Apply** runs them.
+- On a production connection the dialog is red and the button reads **I understand, apply to production**.
+- DSQL changes at most 3,000 rows in one transaction (and about 10 MiB). Bigger saves are split into several
+  transactions; the dialog says so, and if one fails the ones before it stay saved.
+- If another session changed the same rows at the same time (DSQL's optimistic concurrency, `40001`), the app retries
+  the transaction up to three times. If it still conflicts, it says someone else changed those rows and offers
+  **Reload**.
+
+After saving, the app says how many rows changed and how many were no longer there (deleted or re-keyed by someone
+else), then reloads the page.
 
 ## History
 

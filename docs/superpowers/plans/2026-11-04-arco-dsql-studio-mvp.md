@@ -380,10 +380,12 @@ Done 2026-11-05. Files as listed, plus `src/screens/Workspace.tsx` holding tabs 
 **Files:** Create `src/components/{TableBrowser,SaveDialog}.tsx`.
 
 - Behaviour (spec 5.5): open table from the tree into a tab; pages of 200 rows; sort by header; per-column filter row; free `WHERE` box; "Show SQL"; edit cell (NULL toggle per cell, distinct from empty), add row, delete selected rows; staged changes highlighted; Save → `preview_changes` → dialog listing every statement and the row count (red with explicit "I understand, apply to production" confirm when production; one-click otherwise; split-into-batches note when >1 batch) → `apply_changes`; OCC retries shown from `db://occ-retry`, final conflict → "reload" action; tables without PK read-only with tooltip; copy as CSV/TSV/JSON/INSERT; export result to CSV via the Tauri dialog/fs plugins.
-- [ ] **Step 1:** Failing tests: `save_dialog_lists_statements`, `production_save_needs_explicit_confirm`, `no_pk_table_is_read_only`, `null_toggle_differs_from_empty`, `copy_as_insert_quotes_values`.
-- [ ] **Step 2–4:** FAIL → implement → PASS.
-- [ ] **Step 5:** Manual check on a scratch table (created and dropped during the check) or on the test app's table only with the owner's OK.
-- [ ] **Step 6:** Extend `docs/working-with-data.md` (browsing, editing, production confirmation, batching, OCC). Commit `feat(ui): table browser with staged edits`.
+- [x] **Step 1:** Failing tests: `save_dialog_lists_statements`, `production_save_needs_explicit_confirm`, `no_pk_table_is_read_only`, `null_toggle_differs_from_empty`, `copy_as_insert_quotes_values`.
+- [x] **Step 2–4:** FAIL → implement → PASS.
+- [x] **Step 5:** Manual check on a scratch table (created and dropped during the check) or on the test app's table only with the owner's OK.
+- [x] **Step 6:** Extend `docs/working-with-data.md` (browsing, editing, production confirmation, batching, OCC). Commit `feat(ui): table browser with staged edits`.
+
+Done 2026-11-05. `TableBrowser` opens in its own tab kind from the tree (Open / double-click); "Query in SQL" still opens a SQL tab. Copy formats live in `src/copy.ts` (CSV RFC 4180, TSV with `\N` for NULL, JSON, INSERT). Export uses `tauri-plugin-dialog` (save) and `tauri-plugin-fs` with only `dialog:allow-save` and `fs:allow-write-text-file`; the dialog puts the picked path in the fs scope. OCC retries are reported from `ApplyReport.retries` (no `db://occ-retry` event, see Task 12); a final 40001 shows "someone else changed the same rows" with Reload. Changes from the owner's manual check: column widths are resizable in both grids (`ColumnResize.tsx`: drag a header edge, double-click to fit); a saved connection shows "Connecting…" while it opens; the tree has a reload button and reloads after statements that change the schema (an empty `public` is hidden by `catalog::schemas`, so a new table there only shows after a reload). Manual check by the owner on the scratch cluster: created `public.arco_demo` from the editor, edited cells (NULL vs empty), added and deleted rows, saved through the preview, sorted, filtered, copied as INSERT, then dropped the table.
 
 ### Task 16: Role wizard and "Check access" (UI)
 

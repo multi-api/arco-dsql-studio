@@ -24,14 +24,20 @@ function App() {
   const [problem, setProblem] = useState<Explanation | null>(null);
   // Bumped after a sign-in so the cluster list scans again.
   const [attempt, setAttempt] = useState(0);
+  // The saved connection being opened: signing in to AWS and opening TLS to DSQL takes a few seconds.
+  const [connecting, setConnecting] = useState<SavedConnection | null>(null);
 
   async function reconnect(saved: SavedConnection) {
+    if (connecting) return;
     setProblem(null);
+    setConnecting(saved);
     try {
       const handle = await openConnection(saved);
       setScreen({ name: "connected", handle, saved });
     } catch (err) {
       setProblem(await explainOffline(saved, err));
+    } finally {
+      setConnecting(null);
     }
   }
 
@@ -66,6 +72,7 @@ function App() {
             onSignIn={(profile) => setScreen({ name: "signin", profile, then: { name: "clusters", profile } })}
             onSetup={() => setScreen({ name: "setup" })}
             onReconnect={reconnect}
+            connecting={connecting}
             problem={problem}
           />
         )}

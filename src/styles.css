@@ -752,3 +752,179 @@ button.small {
   padding: 2px 10px;
   font-size: 12px;
 }
+
+/* Table browser */
+.center.table-mode {
+  grid-template-rows: auto 1fr;
+}
+
+.browser {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 0 8px 8px;
+  overflow: hidden;
+}
+
+.browser .toolbar {
+  flex-wrap: wrap;
+  padding: 8px 0 0;
+}
+
+.browser-grid {
+  flex: 1;
+  max-height: none;
+  min-height: 0;
+}
+
+.where {
+  grid-template-columns: 1fr auto;
+  align-items: end;
+}
+
+th button.sort {
+  all: unset;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+tr.filters th {
+  top: 28px;
+  padding: 3px 4px;
+  font-weight: 400;
+}
+
+tr.filters select,
+tr.filters input {
+  width: 100%;
+  min-width: 70px;
+  padding: 2px 4px;
+  font-size: 12px;
+}
+
+table.grid td.rownum input {
+  margin: 0 6px 0 0;
+  vertical-align: middle;
+}
+
+table.grid td.changed {
+  background: var(--warn-bg);
+}
+
+table.grid tr.added td {
+  background: oklch(from var(--ok) l c h / 0.12);
+}
+
+table.grid tr.deleted td {
+  text-decoration: line-through;
+  color: var(--muted);
+  background: var(--error-bg);
+}
+
+table.grid td.default {
+  color: var(--muted);
+  font-style: italic;
+}
+
+table.grid td.editing {
+  padding: 1px 2px;
+}
+
+.cell-editor {
+  display: flex;
+  gap: 4px;
+}
+
+.cell-editor input {
+  flex: 1;
+  min-width: 0;
+  padding: 1px 4px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+button.null-toggle {
+  padding: 0 6px;
+  font-size: 11px;
+  background: var(--hover);
+  color: var(--muted);
+  border-color: var(--border);
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+pre.statements {
+  max-height: 40vh;
+  overflow: auto;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px 0;
+}
+
+.side-head h3 {
+  margin: 0;
+}
+
+.side .tree {
+  flex: 1;
+  border-right: 0;
+}
+
+button.row:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
+/* Resizable columns: widths come from <colgroup>, so cells no longer cap themselves. */
+table.grid.sized {
+  table-layout: fixed;
+  width: max-content;
+}
+
+table.grid.sized th,
+table.grid.sized td {
+  max-width: none;
+}
+
+table.grid th {
+  position: sticky;
+}
+
+.col-resize {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 7px;
+  cursor: col-resize;
+  z-index: 2;
+}
+
+.col-resize:hover,
+body.resizing .col-resize:active {
+  background: var(--primary);
+  opacity: 0.5;
+}
+
+body.resizing,
+body.resizing * {
+  cursor: col-resize !important;
+  user-select: none;
+}

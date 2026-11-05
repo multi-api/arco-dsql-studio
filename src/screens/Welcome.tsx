@@ -19,12 +19,15 @@ export default function Welcome({
   onSignIn,
   onSetup,
   onReconnect,
+  connecting,
   problem: outerProblem,
 }: {
   onPickProfile: (profile: ProfileInfo) => void;
   onSignIn: (profile: ProfileInfo) => void;
   onSetup: () => void;
   onReconnect: (saved: SavedConnection) => void;
+  /** The saved connection being opened, if any. */
+  connecting?: SavedConnection | null;
   problem?: Explanation | null;
 }) {
   const [profiles, setProfiles] = useState<ProfileInfo[] | null>(null);
@@ -51,7 +54,13 @@ export default function Welcome({
           <ul className="list">
             {saved.map((c) => (
               <li key={c.id ?? c.name}>
-                <button type="button" className="row" onClick={() => onReconnect(c)}>
+                <button
+                  type="button"
+                  className="row"
+                  onClick={() => onReconnect(c)}
+                  disabled={!!connecting}
+                  aria-busy={connecting?.id === c.id}
+                >
                   <span>
                     <strong>{c.name}</strong>
                     <span className="muted">
@@ -60,6 +69,7 @@ export default function Welcome({
                     </span>
                   </span>
                   <span className="tags">
+                    {connecting?.id === c.id && <span className="muted">Connecting…</span>}
                     {c.production && <span className="badge warn">production</span>}
                     {c.read_only && <span className="badge">read-only</span>}
                   </span>

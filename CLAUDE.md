@@ -32,7 +32,9 @@ Instructions for AI agents (and people) building this repository.
 - 2026-11-05: Task 12 done (Tauri commands over `dsql-core`, `src/api.ts`, IPC tests).
 - 2026-11-05: Task 13 done (welcome, AWS setup, cluster picker, connect; `docs/connecting.md`).
 - 2026-11-05: Task 14 done, MVP milestone (workspace: schema tree, SQL editor, results, history;
-  `docs/working-with-data.md`). Next: Task 15 (table browser and editing).
+  `docs/working-with-data.md`).
+- 2026-11-05: Task 15 done (table browser with staged edits, copy and CSV export). Next: Task 16 (role wizard and
+  "Check access" UI).
 
 ## Rules
 

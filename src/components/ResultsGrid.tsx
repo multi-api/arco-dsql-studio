@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { ResultSet } from "../types";
+import { ResizeHandle, fitWidth, useColumnWidths } from "./ColumnResize";
 
 const ROW_HEIGHT = 26;
 /** Rows drawn above and below the visible ones, so fast scrolling does not show blanks. */
@@ -28,6 +29,7 @@ export default function ResultsGrid({ result, durationMs }: { result: ResultSet;
   }, [result]);
 
   const { columns, rows, truncated } = result;
+  const { widths, setWidth } = useColumnWidths(columns);
   const first = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
   const last = Math.min(rows.length, Math.ceil((scrollTop + height) / ROW_HEIGHT) + OVERSCAN);
   const count = `${rows.length.toLocaleString()} ${rows.length === 1 ? "row" : "rows"}`;
@@ -45,13 +47,25 @@ export default function ResultsGrid({ result, durationMs }: { result: ResultSet;
         )}
       </div>
       <div className="grid-scroll" ref={box} onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}>
-        <table className="grid" role="grid" aria-rowcount={rows.length + 1}>
+        <table className="grid sized" role="grid" aria-rowcount={rows.length + 1}>
+          <colgroup>
+            <col style={{ width: 56 }} />
+            {columns.map((_, i) => (
+              <col key={i} style={{ width: widths[i] }} />
+            ))}
+          </colgroup>
           <thead>
             <tr role="row">
               <th className="rownum" aria-hidden />
               {columns.map((c, i) => (
                 <th key={i} role="columnheader">
                   {c}
+                  <ResizeHandle
+                    label={c}
+                    width={widths[i] ?? 160}
+                    onResize={(w) => setWidth(i, w)}
+                    onFit={() => setWidth(i, fitWidth(c, rows.slice(first, last).map((r) => r[i])))}
+                  />
                 </th>
               ))}
             </tr>
