@@ -24,8 +24,9 @@ Instructions for AI agents (and people) building this repository.
 - 2026-11-05: Task 5 done (`token.rs`, `conn.rs`: IAM tokens, verify-full TLS, cancel, recycling pool).
 - 2026-11-05: Task 6 done (`catalog.rs`: schemas, tables, columns, keys, default schema).
 - 2026-11-05: Arco logo merged (`assets/brand/`), app icons regenerated.
-- 2026-11-05: Task 7 done (`split.rs`, `exec.rs`, `store.rs`: run scripts, local history). Next: Task 8 (statement
-  classification).
+- 2026-11-05: Task 7 done (`split.rs`, `exec.rs`, `store.rs`: run scripts, local history).
+- 2026-11-05: Task 8 done (`classify.rs`, `rules.rs`: statement kinds and DSQL warnings). Next: Task 9 (error
+  explanations).
 
 ## Rules
 

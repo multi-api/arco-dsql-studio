@@ -85,8 +85,8 @@ The app removes those walls: pick your AWS profile, pick your cluster, and you a
     `aws-sdk-ssooidc` + `aws-sdk-sso` (in-app SSO sign-in and account/role listing, section 6.1).
   - `tokio-postgres` with TLS through `rustls` (`tokio-postgres-rustls` + `webpki-roots` or the native roots).
     **sslmode verify-full**: the endpoint certificate is checked against the hostname.
-  - `sqlparser` (PostgreSQL dialect) for statement classification (section 6.6), with a fallback to keyword rules
-    when parsing fails.
+  - Statement classification (section 6.6) uses a small SQL tokenizer of its own, not `sqlparser`: decided in Task 8,
+    because DSQL syntax such as `CREATE INDEX ASYNC` and `AWS IAM GRANT` is unknown to general parsers.
   - `rusqlite` for local app data (history, saved connections, settings).
 - UI libraries (author's call): CodeMirror 6 with `@codemirror/lang-sql` for the editor (schema-aware autocomplete),
   a virtualized grid (TanStack Table + TanStack Virtual, or Glide Data Grid) for results and table data. Tailwind is
@@ -264,7 +264,8 @@ Facts the wizard relies on:
 - In DSQL a non-admin role cannot create objects in `public`.
 
 ### 6.6 Statement classification (warnings)
-Parse with `sqlparser` (PostgreSQL dialect); fall back to keyword rules. Classes:
+Split into statements, then tokenize each (comments and string contents never match a rule) and match keyword
+patterns. (The first draft said `sqlparser`; Task 8 replaced it, see `crates/dsql-core/src/classify.rs`.) Classes:
 - **Rejected by DSQL** (warn, explain, give the alternative; list from the `multiapi/laravel-aurora-dsql` README,
   verified on a live cluster):
   - `TRUNCATE` → `DELETE FROM`.
@@ -281,7 +282,7 @@ Parse with `sqlparser` (PostgreSQL dialect); fall back to keyword rules. Classes
   - `CREATE DATABASE`.
   - `CREATE INDEX` without `ASYNC`, on any table (the spike found DSQL rejects it even on an empty table:
     `0A000 unsupported mode. please use CREATE INDEX ASYNC.`) → `CREATE INDEX ASYNC`.
-  - more than one DDL statement in a transaction.
+  - more than one DDL statement in a transaction, or DDL next to data changes in one transaction.
 - **Writes data** (INSERT/UPDATE/DELETE/MERGE/COPY) and **changes schema** (DDL, GRANT/REVOKE, role commands) →
   production confirmation; blocked when read-only.
 - **Read** → runs directly.

@@ -6,7 +6,7 @@
 
 **Architecture:** A Tauri 2 app. All AWS and Postgres work lives in a plain Rust library crate, `dsql-core`, testable without Tauri; `src-tauri` is a thin layer of Tauri commands over it; the React + TypeScript UI calls those commands and never sees credentials or tokens.
 
-**Tech Stack:** Rust stable (1.99 or later; see CLAUDE.md "Toolchain" for a fresh machine), Tauri 2.x (not the 3.0 alpha), `aws-config` 1.x (`sso` feature), `aws-sdk-dsql`, `aws-sdk-sts`, `aws-sdk-iam`, `aws-sdk-sso`, `aws-sdk-ssooidc`, `aws-sdk-lambda`, `tokio-postgres` 0.7 + `tokio-postgres-rustls` + `rustls` + `webpki-roots`, `sqlparser` (PostgreSQL dialect), `rusqlite` (bundled), `sha1`, `serde`, `thiserror`; Node 22+ (26 works), Vite, React 19 (what `create-tauri-app` scaffolds; Testing Library supports it), TypeScript, CodeMirror 6 (`@codemirror/lang-sql`), TanStack Table + TanStack Virtual, Tailwind, Vitest.
+**Tech Stack:** Rust stable (1.99 or later; see CLAUDE.md "Toolchain" for a fresh machine), Tauri 2.x (not the 3.0 alpha), `aws-config` 1.x (`sso` feature), `aws-sdk-dsql`, `aws-sdk-sts`, `aws-sdk-iam`, `aws-sdk-sso`, `aws-sdk-ssooidc`, `aws-sdk-lambda`, `tokio-postgres` 0.7 + `tokio-postgres-rustls` + `rustls` + `webpki-roots`, `rusqlite` (bundled), `sha1`, `serde`, `thiserror`; Node 22+ (26 works), Vite, React 19 (what `create-tauri-app` scaffolds; Testing Library supports it), TypeScript, CodeMirror 6 (`@codemirror/lang-sql`), TanStack Table + TanStack Virtual, Tailwind, Vitest.
 
 **Spec:** `docs/superpowers/specs/2026-11-04-arco-dsql-studio-design.md` (section numbers below refer to it).
 
@@ -266,11 +266,13 @@ Done 2026-11-05. New `split.rs` (`split_statements`: `;` outside quotes, comment
   - `pub enum StatementKind { Read, Write, Schema, Transaction, Other }`.
   - `pub struct Finding { rule_id: &'static str, message: String, alternative: String, docs_url: Option<String> }`.
   - `pub struct Classified { statements: Vec<ClassifiedStatement> }`, `ClassifiedStatement { sql: String, kind: StatementKind, findings: Vec<Finding> }`.
-  - `pub fn classify(sql: &str) -> Classified` (sqlparser PostgreSQL dialect; on parse failure, keyword fallback per statement split on `;` outside quotes).
+  - `pub fn classify(sql: &str) -> Classified` (statements from `split::split_statements`, then a small tokenizer and keyword patterns; see the Task 8 note).
   - `pub fn needs_confirmation(c: &Classified, production: bool) -> bool` and `pub fn blocked_by_read_only(c: &Classified) -> bool`.
   - Rule ids (one test each, named `rule_<id>`): `truncate`, `add_constraint`, `add_column_default_or_not_null`, `alter_column_type`, `set_not_null`, `savepoint`, `temp_table`, `trigger`, `plpgsql`, `extension`, `advisory_lock`, `for_share`, `fts_config`, `create_database`, `index_without_async` (every `CREATE INDEX` without `ASYNC`, empty table or not: DSQL answers `0A000 unsupported mode. please use CREATE INDEX ASYNC.`), `multiple_ddl_in_transaction`. Messages and alternatives from spec 6.6.
-- [ ] **Step 1: Failing tests:** one per rule id above, plus `select_is_read`, `insert_is_write`, `grant_is_schema`, `comment_and_string_with_semicolon_not_split` (`select ';' -- ;` is one statement), `production_write_needs_confirmation`, `read_only_blocks_delete`.
-- [ ] **Step 2–4:** FAIL → implement → PASS. Commit `feat(core): classify statements DSQL rejects`.
+- [x] **Step 1: Failing tests:** one per rule id above, plus `select_is_read`, `insert_is_write`, `grant_is_schema`, `comment_and_string_with_semicolon_not_split` (`select ';' -- ;` is one statement), `production_write_needs_confirmation`, `read_only_blocks_delete`.
+- [x] **Step 2–4:** FAIL → implement → PASS. Commit `feat(core): classify statements DSQL rejects`.
+
+Done 2026-11-05. Classification uses its own tokenizer instead of `sqlparser`: DSQL syntax (`CREATE INDEX ASYNC`, `AWS IAM GRANT`) is unknown to general parsers, and the rules only need keywords outside strings and comments; the spec was updated. `multiple_ddl_in_transaction` also fires for DDL next to data changes inside `BEGIN ... COMMIT` (AWS: DDL and DML go in separate transactions). Rule texts and docs links are in `rules.rs`. Extra tests: strings, comments and quoted identifiers never trigger rules; `WITH ... DELETE` and `EXPLAIN ANALYZE DELETE` are writes; `DO` blocks are PL/pgSQL; no false positives for `CREATE INDEX ASYNC`, nullable `ADD COLUMN`, `FOR UPDATE`, `to_tsvector('simple', ...)`.
 
 ### Task 9: Error explanations (spec 6.7)
 
