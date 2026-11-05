@@ -1,9 +1,10 @@
-//! The single error type of `dsql-core`. It is `Serialize` so Tauri commands can return it as-is.
+//! The single error type of `dsql-core`. It is `Serialize` so Tauri commands can return it as-is, and `Deserialize`
+//! so the UI can send one back to be explained.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// What kind of AWS failure happened, so the UI can offer the right fix (for example "Sign in again").
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AwsErrorKind {
     SsoExpired,
     AccessDenied,
@@ -11,7 +12,7 @@ pub enum AwsErrorKind {
     Other,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, thiserror::Error)]
 pub enum CoreError {
     #[error("AWS error ({kind:?}): {message}")]
     Aws { kind: AwsErrorKind, message: String },

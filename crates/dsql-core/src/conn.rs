@@ -54,17 +54,38 @@ impl Session {
     /// session closes its connection: the statement's future fails at once, and the pool replaces the connection. The
     /// statement may still finish on the server.
     pub async fn cancel(&self) {
+        self.canceller().cancel().await;
+    }
+
+    /// A handle that cancels this session's running statement from elsewhere, for example another Tauri command.
+    pub fn canceller(&self) -> Canceller {
+        Canceller {
+            cancel_token: self.cancel_token.clone(),
+            connection: self.connection.clone(),
+        }
+    }
+
+    /// Closed by the server, the network, `cancel`, or DSQL's 60-minute limit.
+    pub fn is_closed(&self) -> bool {
+        self.client.is_closed()
+    }
+}
+
+/// See `Session::cancel`.
+#[derive(Clone)]
+pub struct Canceller {
+    cancel_token: CancelToken,
+    connection: AbortHandle,
+}
+
+impl Canceller {
+    pub async fn cancel(&self) {
         let _ = tokio::time::timeout(
             CANCEL_REQUEST_TIMEOUT,
             self.cancel_token.cancel_query(tls()),
         )
         .await;
         self.connection.abort();
-    }
-
-    /// Closed by the server, the network, `cancel`, or DSQL's 60-minute limit.
-    pub fn is_closed(&self) -> bool {
-        self.client.is_closed()
     }
 }
 
@@ -128,7 +149,7 @@ pub async fn connect_with(cfg: &SdkConfig, target: &Target) -> Result<Session, C
 }
 
 /// Postgres errors keep their SQLSTATE, detail and hint; connection failures have no SQLSTATE.
-pub(crate) fn db_error(err: tokio_postgres::Error) -> CoreError {
+pub fn db_error(err: tokio_postgres::Error) -> CoreError {
     match err.as_db_error() {
         Some(db) => CoreError::Db {
             sqlstate: Some(db.code().code().to_string()),

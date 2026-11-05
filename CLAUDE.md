@@ -28,8 +28,9 @@ Instructions for AI agents (and people) building this repository.
 - 2026-11-05: Task 8 done (`classify.rs`, `rules.rs`: statement kinds and DSQL warnings).
 - 2026-11-05: Task 9 done (`explain.rs`: plain-language errors with a fix).
 - 2026-11-05: Task 10 done (`edits.rs`, `occ.rs`: grid change sets, batching under DSQL's limits, OCC retry).
-- 2026-11-05: Task 11 done (`roles.rs`, `console.rs`: role wizard plans, admin takeover, console Lambda). Next: Task 12
-  (Tauri commands).
+- 2026-11-05: Task 11 done (`roles.rs`, `console.rs`: role wizard plans, admin takeover, console Lambda).
+- 2026-11-05: Task 12 done (Tauri commands over `dsql-core`, `src/api.ts`, IPC tests). Next: Task 13 (welcome, AWS
+  setup and cluster picker UI).
 
 ## Rules
 

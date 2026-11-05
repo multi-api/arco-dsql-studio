@@ -6,7 +6,10 @@ How to build, run and test Arco DSQL Studio from source.
 
 - `crates/dsql-core/` — plain Rust library with all AWS, token, Postgres and SQL logic. No Tauri dependency, so it is
   tested with `cargo test` alone.
-- `src-tauri/` — the Tauri 2 app: a thin layer of commands over `dsql-core`.
+- `src-tauri/` — the Tauri 2 app: a thin layer of commands over `dsql-core` (`src/commands/`), and `AppState`
+  (`src/state.rs`) with pending SSO sign-ins and open connection pools. SSO tokens and credentials stay there.
+- `src/api.ts` — a typed wrapper per Tauri command; `src/types.ts` mirrors the Rust types (snake_case fields,
+  externally tagged enums such as `{ "Db": { ... } }`). Change both when a command changes.
 - `src/` — the React + TypeScript UI (Vite). It calls Tauri commands and never sees AWS credentials or tokens.
 - The repository root is a Cargo workspace (`crates/dsql-core`, `src-tauri`), so `target/` lives at the root.
 
@@ -63,6 +66,22 @@ Run the integration tests with the variables set, for example:
 ```sh
 AWS_PROFILE=... DSQL_REGION=... cargo test -p dsql-core --test integration -- --nocapture
 ```
+
+`src-tauri/tests/ipc.rs` calls the commands over IPC with Tauri's mock runtime, with the JSON the UI sends. Its live
+test (`ipc_live_connection`) uses the same variables:
+
+```sh
+AWS_PROFILE=... DSQL_REGION=... DSQL_HOST=... DSQL_TEST_SCHEMA=... cargo test -p arco-dsql-studio --test ipc
+```
+
+On Windows, `src-tauri/build.rs` embeds the Common Controls v6 manifest (`windows-app-manifest.xml`) in every binary,
+not just the app; without it test binaries that link Tauri exit with `STATUS_ENTRYPOINT_NOT_FOUND`.
+
+## Local data
+
+The app keeps saved connections, query history and settings in `arco-dsql-studio.sqlite` in its data directory
+(`~/Library/Application Support/cl.multiapi.arco-dsql-studio/` on macOS, `%APPDATA%\cl.multiapi.arco-dsql-studio\` on
+Windows). It never stores passwords, tokens or AWS credentials; delete the file to start over.
 
 ## The DSQL spike
 
