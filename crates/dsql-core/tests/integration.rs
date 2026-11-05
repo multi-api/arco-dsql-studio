@@ -3,6 +3,10 @@
 //! Each test is skipped (passes without doing anything) unless the environment variables it needs are set; see
 //! `docs/development.md`. Never commit real values.
 
+use std::time::{Duration, Instant};
+
+use dsql_core::conn::{self, Pool, Target};
+use dsql_core::token::DbRole;
 use dsql_core::{clusters, identity};
 
 /// `AWS_PROFILE` and `DSQL_REGION`, or `None` (test skipped) when either is unset.
@@ -14,6 +18,22 @@ fn aws_env() -> Option<(String, String)> {
         .ok()
         .filter(|v| !v.is_empty())?;
     Some((profile, region))
+}
+
+/// An admin target for `DSQL_HOST` in `DSQL_TEST_SCHEMA`, or `None` (test skipped).
+fn admin_target() -> Option<Target> {
+    let (profile, region) = aws_env()?;
+    let host = std::env::var("DSQL_HOST").ok().filter(|v| !v.is_empty())?;
+    let schema = std::env::var("DSQL_TEST_SCHEMA")
+        .ok()
+        .filter(|v| !v.is_empty())?;
+    Some(Target {
+        profile,
+        region,
+        host,
+        role: DbRole::Admin,
+        schema: Some(schema),
+    })
 }
 
 #[tokio::test]
@@ -83,4 +103,67 @@ async fn it_lists_test_cluster() {
         "test cluster tags: {:?}",
         test.tags.keys().collect::<Vec<_>>()
     );
+}
+
+#[tokio::test]
+async fn it_connect_admin_sets_search_path() {
+    let Some(target) = admin_target() else {
+        eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
+        return;
+    };
+    let session = conn::connect(&target).await.expect("connect as admin");
+    let row = session
+        .client
+        .query_one("select current_user::text, current_schema()::text", &[])
+        .await
+        .unwrap();
+    assert_eq!(row.get::<_, String>(0), "admin");
+    assert_eq!(Some(row.get::<_, String>(1)), target.schema);
+}
+
+#[tokio::test]
+async fn it_cancel_closes_the_connection() {
+    let Some(target) = admin_target() else {
+        eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
+        return;
+    };
+    let pool = Pool::new(target, 2);
+    let session = pool.get().await.expect("connect");
+    let started = Instant::now();
+    let (result, _) = tokio::join!(session.client.simple_query("select pg_sleep(30)"), async {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        session.cancel().await;
+    });
+    let elapsed = started.elapsed();
+    println!(
+        "cancelled after {} ms: {:?}",
+        elapsed.as_millis(),
+        result.as_ref().map(|_| ()).map_err(|e| e.to_string())
+    );
+    assert!(result.is_err());
+    assert!(elapsed < Duration::from_secs(10), "cancel took {elapsed:?}");
+    assert!(session.is_closed());
+    drop(session);
+
+    // The pool does not hand the closed session out again.
+    let next = pool.get().await.expect("reconnect");
+    assert!(!next.is_closed());
+    next.client
+        .simple_query("select 1")
+        .await
+        .expect("new session works");
+}
+
+#[tokio::test]
+async fn it_pool_reuses_idle_sessions() {
+    let Some(target) = admin_target() else {
+        eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
+        return;
+    };
+    let pool = Pool::new(target, 2);
+    let first = pool.get().await.expect("connect").opened_at;
+    let second = pool.get().await.expect("reuse");
+    assert_eq!(second.opened_at, first, "the idle session should be reused");
+    let third = pool.get().await.expect("second slot");
+    assert_ne!(third.opened_at, first);
 }

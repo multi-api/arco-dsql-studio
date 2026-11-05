@@ -209,10 +209,12 @@ Done 2026-11-05. `DSQL_REGIONS` (20) comes from AWS's public SSM parameters, not
   - `pub struct Pool` with `Pool::new(target: Target, max: usize)`, `async fn get(&self) -> Result<PooledSession, CoreError>`, recycling sessions older than `RECYCLE_AFTER = 55 min`, and discarding sessions whose last error was a closed connection.
   - `pub fn is_too_old(opened: Instant, now: Instant) -> bool`.
   - `Session::cancel(&self)`: DSQL ignores cancel requests (Task 1, Step 3), so send `cancel_query`, then drop the connection; the pool replaces it. The UI says the statement may still finish on the server.
-- [ ] **Step 1: Failing tests:** `pool_recycles_old_connections` (`is_too_old` true at 55 min, false at 54), `search_path_statement_quotes` (`set_search_path_sql("My Schema")` == `SET search_path = "My Schema"`), `db_role_user`.
-- [ ] **Step 2–4:** FAIL → implement → PASS.
-- [ ] **Step 5:** Gated `it_connect_admin_sets_search_path` (`select current_schema()` == `DSQL_TEST_SCHEMA`).
-- [ ] **Step 6:** Commit `feat(core): IAM tokens, verify-full TLS and a recycling pool`.
+- [x] **Step 1: Failing tests:** `pool_recycles_old_connections` (`is_too_old` true at 55 min, false at 54), `search_path_statement_quotes` (`set_search_path_sql("My Schema")` == `SET search_path = "My Schema"`), `db_role_user`.
+- [x] **Step 2–4:** FAIL → implement → PASS.
+- [x] **Step 5:** Gated `it_connect_admin_sets_search_path` (`select current_schema()` == `DSQL_TEST_SCHEMA`).
+- [x] **Step 6:** Commit `feat(core): IAM tokens, verify-full TLS and a recycling pool`.
+
+Done 2026-11-05. Also `connect_with(cfg, target)` (the pool loads credentials once), `quote::ident` (Task 10 adds `literal`), `PooledSession::discard()` for sessions that may hold an open transaction (Task 7/10 call it on errors mid-transaction), and `Pool::clear()`. `Session::cancel` sends a cancel request (2 s timeout) and then aborts the connection task: live, `pg_sleep(30)` stopped after ~1.4 s with `connection closed`, and the pool opened a fresh session next. Extra gated tests: `it_cancel_closes_the_connection`, `it_pool_reuses_idle_sessions`. The integration fixture is `spike.rs setup` on the scratch cluster (`DSQL_TEST_SCHEMA=spike_app`).
 
 ### Task 6: Catalog
 

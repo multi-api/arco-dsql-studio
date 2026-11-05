@@ -19,7 +19,9 @@ Instructions for AI agents (and people) building this repository.
 - 2026-11-04: Task 1 done on a scratch cluster the owner approved (not an Arco app); see `docs/spike-findings.md`.
 - 2026-11-04: Task 2 done (`profiles.rs`: list and append AWS profiles).
 - 2026-11-04: Task 3 done (`sso.rs`, `identity.rs`: device login, CLI-compatible cache, caller identity).
-- 2026-11-05: Task 4 done (`clusters.rs`: clusters across regions). Next: Task 5 (tokens, TLS, pool).
+- 2026-11-05: Task 4 done (`clusters.rs`: clusters across regions).
+- 2026-11-05: Task 5 done (`token.rs`, `conn.rs`: IAM tokens, verify-full TLS, cancel, recycling pool). Next: Task 6
+  (catalog).
 
 ## Rules
 
