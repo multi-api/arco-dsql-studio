@@ -3,7 +3,6 @@
 //! Each test is skipped (passes without doing anything) unless the environment variables it needs are set; see
 //! `docs/development.md`. Never commit real values.
 
-use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use dsql_core::conn::{self, Pool, Target};
@@ -12,13 +11,7 @@ use dsql_core::{catalog, clusters, identity};
 
 /// Tests that change the schema (create a table, grant, create a role) make catalog reads running at the same time
 /// fail with `OC001` ("schema has been updated by another transaction"), so the live tests run one at a time.
-static SERIAL: Mutex<()> = Mutex::new(());
-
-fn serial() -> MutexGuard<'static, ()> {
-    SERIAL
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-}
+static SERIAL: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 /// `AWS_PROFILE` and `DSQL_REGION`, or `None` (test skipped) when either is unset.
 fn aws_env() -> Option<(String, String)> {
@@ -49,7 +42,7 @@ fn admin_target() -> Option<Target> {
 
 #[tokio::test]
 async fn it_caller_identity() {
-    let _serial = serial();
+    let _serial = SERIAL.lock().await;
     let Some((profile, region)) = aws_env() else {
         eprintln!("skipped: AWS_PROFILE and DSQL_REGION not set");
         return;
@@ -79,7 +72,7 @@ async fn it_caller_identity() {
 
 #[tokio::test]
 async fn it_lists_test_cluster() {
-    let _serial = serial();
+    let _serial = SERIAL.lock().await;
     let Some((profile, region)) = aws_env() else {
         eprintln!("skipped: AWS_PROFILE and DSQL_REGION not set");
         return;
@@ -120,7 +113,7 @@ async fn it_lists_test_cluster() {
 
 #[tokio::test]
 async fn it_connect_admin_sets_search_path() {
-    let _serial = serial();
+    let _serial = SERIAL.lock().await;
     let Some(target) = admin_target() else {
         eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
         return;
@@ -137,7 +130,7 @@ async fn it_connect_admin_sets_search_path() {
 
 #[tokio::test]
 async fn it_cancel_closes_the_connection() {
-    let _serial = serial();
+    let _serial = SERIAL.lock().await;
     let Some(target) = admin_target() else {
         eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
         return;
@@ -171,7 +164,7 @@ async fn it_cancel_closes_the_connection() {
 
 #[tokio::test]
 async fn it_pool_reuses_idle_sessions() {
-    let _serial = serial();
+    let _serial = SERIAL.lock().await;
     let Some(target) = admin_target() else {
         eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
         return;
@@ -186,7 +179,7 @@ async fn it_pool_reuses_idle_sessions() {
 
 #[tokio::test]
 async fn it_lists_test_schema_tables() {
-    let _serial = serial();
+    let _serial = SERIAL.lock().await;
     let Some(target) = admin_target() else {
         eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
         return;
@@ -241,7 +234,7 @@ async fn it_lists_test_schema_tables() {
 
 #[tokio::test]
 async fn it_run_script_multi_statement() {
-    let _serial = serial();
+    let _serial = SERIAL.lock().await;
     use dsql_core::exec::{StatementOutcome, run_script};
     let Some(target) = admin_target() else {
         eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
@@ -338,7 +331,7 @@ async fn it_run_script_multi_statement() {
 
 #[tokio::test]
 async fn it_explains_real_errors() {
-    let _serial = serial();
+    let _serial = SERIAL.lock().await;
     use dsql_core::exec::{StatementOutcome, run_script};
     use dsql_core::explain::{ExplainContext, FixAction, explain};
     let Some(target) = admin_target() else {
@@ -404,7 +397,7 @@ async fn it_explains_real_errors() {
 /// optimistic-concurrency conflict really surfaces as 40001, which `apply` retries.
 #[tokio::test]
 async fn it_apply_update_roundtrip() {
-    let _serial = serial();
+    let _serial = SERIAL.lock().await;
     use dsql_core::edits::{self, ChangeSet, MAX_ROWS_PER_TX, RowUpdate, Values};
     use dsql_core::occ::is_occ;
     let Some(mut target) = admin_target() else {
@@ -551,7 +544,7 @@ fn conn_error(err: tokio_postgres::Error) -> dsql_core::CoreError {
 /// Skipped unless `admin` holds ADMIN OPTION on the owner (true on the spike fixture, where `admin` created it).
 #[tokio::test]
 async fn it_role_lifecycle() {
-    let _serial = serial();
+    let _serial = SERIAL.lock().await;
     use dsql_core::roles::{self, Access};
     let Some(target) = admin_target() else {
         eprintln!("skipped: AWS_PROFILE, DSQL_REGION, DSQL_HOST and DSQL_TEST_SCHEMA not all set");
@@ -673,7 +666,7 @@ async fn it_role_lifecycle() {
 /// `DSQL_CONSOLE_FUNCTION`; it runs inside a real app, so set it only with the owner's OK.
 #[tokio::test]
 async fn it_console_tinker() {
-    let _serial = serial();
+    let _serial = SERIAL.lock().await;
     let Some((profile, region)) = aws_env() else {
         eprintln!("skipped: AWS_PROFILE and DSQL_REGION not set");
         return;

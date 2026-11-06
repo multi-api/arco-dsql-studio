@@ -45,12 +45,16 @@ Guides: [connecting](docs/connecting.md), [working with data](docs/working-with-
 
 ## Install
 
-### From a build (macOS)
+### From a build
 
-Open the `.dmg` and drag **Arco DSQL Studio** to Applications. The build is not signed or notarised yet, so the first
+Download the installer for your system from the
+[Releases](https://github.com/multi-api/arco-dsql-studio/releases) page: a `.dmg` for macOS (Apple silicon or Intel),
+an `.msi` or `-setup.exe` for Windows, a `.deb`, `.rpm` or `.AppImage` for Linux.
+
+On macOS, open the `.dmg` and drag **Arco DSQL Studio** to Applications. The build is not signed or notarised yet, so the first
 time macOS says it cannot check it: open **System Settings → Privacy & Security**, find the message about Arco DSQL
 Studio and click **Open Anyway** (or right-click the app in Finder → **Open**). Signing needs an Apple Developer ID and
-is planned.
+is planned. On Windows, SmartScreen may say it protected your PC: click **More info → Run anyway**.
 
 ### From source
 

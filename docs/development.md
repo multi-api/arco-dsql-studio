@@ -55,6 +55,26 @@ same way.
 `npm run tauri build -- --no-bundle` compiles the release binary only (`target/release/arco-dsql-studio`), without
 the installer tools, which Tauri downloads the first time it bundles.
 
+## CI and releases
+
+- **`.github/workflows/ci.yml`** runs on every pull request and on `main`: the UI job type-checks, builds and runs
+  `npm test`; the Rust job runs `cargo clippy -D warnings` and `cargo test --workspace` on macOS, Windows and Linux
+  (plus `cargo fmt --check` on Linux). No AWS values are set there, so the integration tests skip themselves.
+- **`.github/workflows/release.yml`** builds the installers when a version tag is pushed (or by hand from the Actions
+  tab): macOS Apple silicon and Intel (`.dmg`, `.app`), Windows (`.msi`, NSIS `.exe`) and Linux (`.deb`, `.rpm`,
+  `.AppImage`). It uses `tauri-apps/tauri-action` and attaches them to a **draft** release named after the app's
+  version.
+
+To release:
+
+1. Set the same version in `package.json`, `src-tauri/tauri.conf.json` and the root `Cargo.toml`
+   (`workspace.package.version`), and commit it on `main`.
+2. Tag and push it: `git tag v0.1.0 && git push origin v0.1.0`. The tag must match the version (`v` + version).
+3. When the workflow finishes, check the draft under **Releases**, try a build, then publish it.
+
+The installers are unsigned (see above). Signing would add the certificates as repository secrets and pass them to
+`tauri-action`; it is not set up.
+
 ## Integration tests
 
 Integration tests run against a real Aurora DSQL cluster and are skipped when these environment variables are unset:

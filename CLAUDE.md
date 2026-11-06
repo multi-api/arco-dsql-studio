@@ -37,8 +37,10 @@ Instructions for AI agents (and people) building this repository.
 - 2026-11-05: Task 16 done (role wizard, remove a role, "Check access"; `docs/team-access.md`). Pending review: the
   owner's manual end-to-end on the scratch cluster, and the console Lambda path (never run).
 - 2026-11-05: Task 17 done on Windows (README, release-build docs, macOS bundle settings, full test run).
+- 2026-11-05: CI (`.github/workflows/ci.yml`: tests on macOS, Windows, Linux) and release builds
+  (`release.yml`: unsigned installers on a `v*` tag, as a draft release); see `docs/development.md`.
   **Hand-over — pending:**
-  - Build and try the `.dmg` on a Mac (Task 17 Step 1; record its size).
+  - Try the `.dmg` from the release workflow on a Mac (Task 17 Step 1; record its size).
   - The owner's manual check of the role wizard (Task 16 Step 5) and a first run of the console Lambda path
     (**Run it for me**, `it_console_tinker`) on a real Arco app, with the owner's OK.
   - Code signing and notarisation (needs the owner's Apple Developer ID); Windows and Linux packages; a deep link from
