@@ -39,13 +39,14 @@ Instructions for AI agents (and people) building this repository.
 - 2026-11-05: Task 17 done on Windows (README, release-build docs, macOS bundle settings, full test run).
 - 2026-11-05: CI (`.github/workflows/ci.yml`: tests on macOS, Windows, Linux) and release builds
   (`release.yml`: unsigned installers on a `v*` tag, as a draft release); see `docs/development.md`.
+- 2026-11-06: Published to `multi-api/arco-dsql-studio` (pull requests 1 and 2 merged) and tagged `v0.1.0`; the
+  release workflow built every installer into a **draft** release (`.dmg` 6.7 MB Apple silicon, 7.3 MB Intel).
   **Hand-over — pending:**
-  - Try the `.dmg` from the release workflow on a Mac (Task 17 Step 1; record its size).
+  - Try an installer from the draft release (Windows, and the `.dmg` on a Mac), then the owner publishes the release.
   - The owner's manual check of the role wizard (Task 16 Step 5) and a first run of the console Lambda path
     (**Run it for me**, `it_console_tinker`) on a real Arco app, with the owner's OK.
-  - Code signing and notarisation (needs the owner's Apple Developer ID); Windows and Linux packages; a deep link from
-    Arco Cloud.
-  - Publishing: create `multi-api/arco-dsql-studio` on GitHub and push, only after the owner's explicit "si".
+  - Code signing and notarisation (needs the owner's Apple Developer ID; a certificate for Windows); a deep link from
+    Arco Cloud; screenshots in the README.
   - The scratch cluster (schema `spike_app`, roles `spike_owner` and `spike_readonly`) is the owner's to delete.
 
 ## Rules
